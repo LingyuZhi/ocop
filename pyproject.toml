@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocop"
+version = "0.1.0"
+description = "Outcome-Conditioned Organizational Policy research prototype"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "datasets>=5.0.1",
+    "filelock>=3.16,<4",
+    "httpx>=0.28,<1",
+    "jsonschema>=4.23,<5",
+    "networkx>=3.4,<4",
+    "pydantic>=2.10,<3",
+    "python-dotenv>=1.0,<2",
+]
+
+[project.scripts]
+ocop = "ocop.cli:main"
+
+[project.optional-dependencies]
+local = ["torch==2.5.1+cu121", "torchvision==0.20.1+cu121", "transformers==5.3.0", "safetensors>=0.6,<1", "pillow>=10,<13"]
+training = ["tensorboard>=2.20,<3", "numpy>=1.26,<3"]
+analysis = ["scipy>=1.14,<2", "numpy>=1.26,<3", "tensorboard>=2.20,<3"]
+
+[tool.uv]
+find-links = ["https://mirrors.aliyun.com/pytorch-wheels/cu121/"]
+
+[dependency-groups]
+dev = ["pytest>=8.3,<10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"ocop.graph" = ["contracts/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --basetemp=artifacts/pytest"

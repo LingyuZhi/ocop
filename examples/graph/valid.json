@@ -1,0 +1,12 @@
+{
+  "version": "ocop.graph.v1",
+  "steps": [
+    {"explanation": "Use a solver to develop a complete solution.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_0", "role": "Solver"}},
+    {"explanation": "Have a checker examine the solution.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_1", "role": "Checker"}},
+    {"explanation": "Keep an independent solver for comparison.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_2", "role": "Solver"}},
+    {"explanation": "Decompose the problem before the first solver runs.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_3", "role": "Decomposer"}},
+    {"explanation": "Send the decomposition to the first solver.", "action": {"type": "ADD_EDGE", "source": "worker_3", "target": "worker_0"}},
+    {"explanation": "Send that solution to the checker.", "action": {"type": "ADD_EDGE", "source": "worker_0", "target": "worker_1"}},
+    {"explanation": "The organization is complete; the fixed finalizer will receive all outputs.", "action": {"type": "STOP"}}
+  ]
+}

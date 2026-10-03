@@ -1,0 +1,39 @@
+{
+  "config_version": "ocop.prototype.v1",
+  "contract_version": "ocop.graph.v1",
+  "seed": 42,
+  "artifacts_dir": "artifacts",
+  "metrics_backend": "tensorboard",
+  "storage": "sqlite_and_files",
+  "benchmark": {"name": "gsm8k", "source_split": "train", "train_tasks": 24, "eval_tasks": 6, "dataset_id": "openai/gsm8k", "subset": "main", "revision": "cc7b047b6e5bb11b4f1af84efc572db110a51b3c"},
+  "collection": {"candidates_per_task": 3, "complete_repeats": 5, "max_repeats": 8, "duplicate_graphs": "execute_independently", "experience": [], "candidate_concurrency": 2},
+  "requests": {"concurrency": 8, "timeout_seconds": 180, "max_attempts": 3, "consecutive_exhausted_request_limit": 10},
+  "strong_model": {"provider": "deepseek", "requested_model": "DeepSeek-V4.1-Flash", "model_id": "deepseek-flash", "verified_model_id": "deepseek-flash", "api_key_env": "DEEPSEEK_API_KEY", "thinking": true, "reasoning_effort": "high", "temperature": null, "top_p": 1.0, "max_output_tokens": 8192},
+  "worker_model": {"provider": "openrouter", "requested_model": "GPT-4o-mini", "model_id": "openai/gpt-4o-mini", "verified_model_id": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY", "provider_order": ["OpenAI"], "temperature": 0.7, "top_p": 1.0, "max_output_tokens": 4096},
+  "finalizer": {"provider": "openrouter", "requested_model": "GPT-4o-mini", "model_id": "openai/gpt-4o-mini", "verified_model_id": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY", "provider_order": ["OpenAI"], "temperature": 0.0, "top_p": 1.0, "max_output_tokens": 4096, "answer_format": "final_line_hashes_decimal"},
+  "policy": {"model_path": "/data1/zhilingyu/models/Qwen3.5-2B", "thinking": true, "temperature": 0.7, "top_p": 0.8, "max_new_tokens": 8192, "constrained_decoding": false},
+  "training": {"representation": "raw_traj", "full_parameter": true, "precision": "bf16", "optimizer": "adamw", "learning_rate": 0.00001, "epochs": 3, "effective_batch_size": 4, "max_sequence_length": 8192, "gradient_checkpointing": true, "max_idle_gpus": 6, "checkpoint_selection": "last", "overlength_policy": "report_and_wait"},
+  "training_runtime": {
+    "microbatch_size": 1, "gradient_accumulation": 4,
+    "betas": [0.9, 0.999], "epsilon": 1e-8, "weight_decay": 0.0,
+    "scheduler": "constant", "max_grad_norm": 1.0,
+    "loss_chunk_tokens": 128, "attention": "sdpa",
+    "precision": "bf16 parameters and Adam moments; fp32 cross entropy",
+    "shuffle": true, "checkpoint_every_steps": 6, "checkpoint_retention": "all",
+    "generation_max_new_tokens": 256
+  },
+  "evaluation": {"target_z": [0.0, 0.5, 1.0], "candidates_per_condition": 1, "complete_repeats": 5, "models": ["base", "last_checkpoint"], "backend": "transformers", "max_repeats": 8, "candidate_concurrency": 2, "training_smoke": "first_training_candidate"},
+  "diagnostics": {
+    "single_training_sample_fit_max_steps": 100,
+    "separate_checkpoint_and_results": true,
+    "sft_verification": {
+      "microbatch_size": 1, "gradient_accumulation": 4,
+      "optimizer_steps": 2, "resume_steps": 1,
+      "betas": [0.9, 0.999], "epsilon": 1e-8, "weight_decay": 0.0,
+      "scheduler": "constant", "max_grad_norm": 1.0,
+      "loss_chunk_tokens": 128, "generation_max_new_tokens": 256,
+      "precision": "bf16 parameters and Adam moments; fp32 cross entropy",
+      "attention": "sdpa"
+    }
+  }
+}

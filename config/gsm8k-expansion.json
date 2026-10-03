@@ -1,0 +1,17 @@
+{
+  "version": "ocop.expansion.v1",
+  "source_collection": "artifacts/runs/gsm8k-20260920",
+  "seed": 20260921,
+  "train_tasks": 200,
+  "holdout_tasks": 50,
+  "candidates_per_task": 6,
+  "complete_repeats": 5,
+  "max_repeats": 8,
+  "development_task_ids": ["gsm8k-main-train-217", "gsm8k-main-train-4597"],
+  "development_repeats": 10,
+  "development_max_repeats": 16,
+  "selection_limit": 20,
+  "replication_repeats": 20,
+  "replication_max_repeats": 32,
+  "report_every": 25
+}

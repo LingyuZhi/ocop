@@ -1,0 +1,8 @@
+{
+  "version": "ocop.graph.v1",
+  "steps": [
+    {"explanation": "Assign the first solver.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_0", "role": "Solver"}},
+    {"explanation": "Connect workers before completing the assignments.", "action": {"type": "ADD_EDGE", "source": "worker_0", "target": "worker_1"}},
+    {"explanation": "Finish the design.", "action": {"type": "STOP"}}
+  ]
+}

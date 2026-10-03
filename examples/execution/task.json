@@ -1,0 +1,6 @@
+{
+  "task_id": "balls-smoke",
+  "question": "A box contains 2 red balls and 3 blue balls. How many balls are in the box?",
+  "reference_answer": "5",
+  "split": "smoke"
+}

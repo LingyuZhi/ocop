@@ -1,0 +1,6 @@
+{
+  "version": "ocop.auto_recovery.v1",
+  "initial_delay_seconds": 120.0,
+  "max_delay_seconds": 900.0,
+  "max_probe_attempts": 96
+}

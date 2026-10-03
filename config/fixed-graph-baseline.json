@@ -1,0 +1,19 @@
+{
+  "version": "ocop.fixed_graph_baseline.v1",
+  "complete_repeats": 5,
+  "max_repeats": 8,
+  "candidate_concurrency": 2,
+  "trajectory": {
+    "version": "ocop.graph.v1",
+    "steps": [
+      {"explanation": "Decompose the task.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_0", "role": "Decomposer"}},
+      {"explanation": "Solve using the decomposition.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_1", "role": "Solver"}},
+      {"explanation": "Check the solution.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_2", "role": "Checker"}},
+      {"explanation": "Revise using the checker's findings.", "action": {"type": "ASSIGN_ROLE", "worker_id": "worker_3", "role": "Reviser"}},
+      {"explanation": "Pass the decomposition to the solver.", "action": {"type": "ADD_EDGE", "source": "worker_0", "target": "worker_1"}},
+      {"explanation": "Pass the solution to the checker.", "action": {"type": "ADD_EDGE", "source": "worker_1", "target": "worker_2"}},
+      {"explanation": "Pass the checker's findings to the reviser.", "action": {"type": "ADD_EDGE", "source": "worker_2", "target": "worker_3"}},
+      {"explanation": "Complete the fixed organization.", "action": {"type": "STOP"}}
+    ]
+  }
+}
