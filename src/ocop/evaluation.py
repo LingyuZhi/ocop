@@ -21,12 +21,14 @@ from ocop.evaluation_report import save_report
 from ocop.executor import execute_repeat, executor_config, executor_hash
 from ocop.full_training import audit_inputs, batch_schedule, run_identity, training_settings, validate_saved_checkpoint
 from ocop.graph import replay
+from ocop.inference.vllm_pool import VllmConfig, VllmPool, inference_environment
 from ocop.labels import aggregate_label
 from ocop.llm import RequestRunner, load_credentials, recover_inflight_budget
 from ocop.policy_generation import TransformersGenerator, candidate_seed, generation_config, parse_generation
 from ocop.scoring import score_answer
 from ocop.storage import RunHalted, RunStore
 from ocop.trajectories import digest, file_hash, model_identity, policy_messages
+from ocop.usage import CostBudget, CostBudgetGuard
 
 
 class EvaluationConfig(StrictModel):
@@ -34,17 +36,23 @@ class EvaluationConfig(StrictModel):
     candidates_per_condition: int = Field(gt=0)
     complete_repeats: int = Field(gt=0)
     models: list[Literal["base", "last_checkpoint"]]
-    backend: Literal["transformers"]
+    backend: Literal["transformers", "vllm"]
     max_repeats: int = Field(gt=0)
     candidate_concurrency: int = Field(gt=0)
     training_smoke: Literal["first_training_candidate"]
     task_split: Literal["eval", "holdout"] = "eval"
+    execution_task_limit: int | None = Field(default=None, gt=0)
+    cost_budget: CostBudget | None = None
+    vllm: VllmConfig | None = None
 
     @model_serializer(mode="wrap")
     def serialize_task_split(self, handler):
         result = handler(self)
         if self.task_split == "eval":
             result.pop("task_split", None)
+        for name in ("execution_task_limit", "cost_budget", "vllm"):
+            if getattr(self, name) is None:
+                result.pop(name, None)
         return result
 
     @model_validator(mode="after")
@@ -52,6 +60,8 @@ class EvaluationConfig(StrictModel):
         if (not all(0 <= z <= 1 for z in self.target_z) or len(set(self.target_z)) != len(self.target_z)
                 or self.models != ["base", "last_checkpoint"] or self.max_repeats < self.complete_repeats):
             raise ValueError("Invalid evaluation conditions or repeat budget")
+        if (self.backend == "vllm") != (self.vllm is not None):
+            raise ValueError("vLLM backend requires explicit inference runtime settings")
         return self
 
 
@@ -62,6 +72,10 @@ def candidate_plan(manifest, smoke, settings, seed):
     selected = [task for task in manifest["tasks"] if task["split"] == settings.task_split]
     if not selected:
         raise ValueError("Evaluation task split is empty")
+    if settings.execution_task_limit is not None and settings.execution_task_limit > len(selected):
+        raise ValueError("Execution task limit exceeds the evaluation split")
+    execution_tasks = {task["task_id"] for task in sorted(selected,
+        key=lambda task: digest({"seed": seed, "execution_task": task["task_id"]}))[:settings.execution_task_limit]}
     result = []
     for model in settings.models:
         selections = [(tasks[smoke["task_id"]], "train_smoke", float(smoke["z"]), 0)]
@@ -70,6 +84,8 @@ def candidate_plan(manifest, smoke, settings, seed):
         for task, split, z, slot in selections:
             item = {"task_id": task["task_id"], "split": split, "model": model, "z": z, "slot": slot,
                     "seed": candidate_seed(seed, task["task_id"], slot)}
+            if settings.execution_task_limit is not None:
+                item["execution_selected"] = split == "train_smoke" or task["task_id"] in execution_tasks
             result.append({**item, "key": digest(item), "ordinal": len(result) + 1})
     return result
 
@@ -126,6 +142,12 @@ def prepare_evaluation(runtime, source, training_run):
         "training": {"path": str(training_run.resolve()), "data_hash": data["hash"],
                      "checkpoint_hash": metadata["hash"], "report_hash": file_hash(training_run / "training-report.json")},
         "environment": origin}
+    if settings.vllm is not None:
+        maximum_prompt = max(len(tokenizer.apply_chat_template(policy_messages(tasks[c["task_id"]]["question"], c["z"]),
+            tokenize=True, return_dict=False, add_generation_prompt=True, enable_thinking=True)) for c in plan)
+        if settings.vllm.max_model_len < maximum_prompt + runtime.policy["max_new_tokens"]:
+            raise ValueError("vLLM context is too short for the frozen prompt and full generation budget")
+        snapshot["inference_environment"] = inference_environment(settings.vllm)
     return snapshot, tokenizer
 
 
@@ -161,16 +183,78 @@ def finalize_generation(store, cid, raw):
     else:
         store.put_record("candidate_result", cid, {"status": "generation_invalid", "error": parsed["error"]},
                          parents={"candidate": cid, "trajectory": trajectory_id})
+    if parsed["eligible_for_execution"]:
+        candidate = next(row["payload"] for row in store.record_items("candidate") if row["id"] == cid)
+        if not candidate.get("execution_selected", True):
+            store.put_record("candidate_result", cid, {"status": "execution_not_selected"},
+                             parents={"candidate": cid, "trajectory": trajectory_id})
     store.put_record("generation_result", cid, result, parents={"candidate": cid, "trajectory": trajectory_id})
     return result
 
 
-def generate_candidates(store, snapshot, tokenizer, jobs, device, writer, generator_factory):
+def generate_vllm_candidates(store, snapshot, tokenizer, jobs, writer, pool_factory):
+    settings = EvaluationConfig.model_validate(snapshot["settings"])
+    pending, attempts = [], {}
+    vocabulary = set(tokenizer.get_vocab().values())
+    candidates = {cid: candidate for _, _, cid, candidate in jobs}
+    for task, _, cid, candidate in jobs:
+        if store.get_record("generation_result", cid) is not None:
+            continue
+        raw = store.get_record("generation", cid)
+        if raw is not None:
+            finalize_generation(store, cid, raw)
+            save_report(store, "generating", writer)
+            continue
+        store.ensure_active()
+        attempt = store.put_record("generation_attempt", uuid.uuid4().hex,
+            {"candidate_id": cid, "seed": candidate["seed"], "started": time.time()}, parents={"candidate": cid})
+        attempts[cid] = attempt
+        ids = tokenizer.apply_chat_template(policy_messages(task["question"], candidate["z"]), tokenize=True,
+            return_dict=False, add_generation_prompt=True, enable_thinking=True)
+        pending.append({"key": cid, "model": candidate["model"], "ordinal": candidate["ordinal"],
+                        "seed": candidate["seed"], "input_ids": ids})
+    if not pending:
+        return
+    pool = pool_factory(settings.vllm, snapshot, store.path / "inference")
+    try:
+        for job, output in pool.generate(pending):
+            cid, ids = job["key"], output["token_ids"]
+            if (output["input_ids"] != job["input_ids"] or len(ids) > snapshot["generation_config"]["max_new_tokens"]
+                    or any(type(token) is not int or token not in vocabulary for token in ids)):
+                raise ValueError("vLLM output changed the frozen prompt or token budget")
+            eos = bool(ids) and ids[-1] == tokenizer.eos_token_id
+            close = tokenizer.convert_tokens_to_ids("</think>")
+            boundary = ids.index(close) + 1 if close in ids else len(ids)
+            raw = {"candidate_id": cid, "attempt_id": attempts[cid], "input_ids": job["input_ids"],
+                "token_ids": ids, "text": tokenizer.decode(ids, skip_special_tokens=False),
+                "eos_token": tokenizer.eos_token, "eos_token_id": tokenizer.eos_token_id, "reached_eos": eos,
+                "finish_reason": "eos" if eos else "length" if output["finish_reason"] == "length" else "other",
+                "input_tokens": len(job["input_ids"]), "output_tokens": len(ids),
+                "reasoning_tokens": boundary, "content_tokens": len(ids) - boundary,
+                "token_count_convention": "reasoning includes closing think; content includes message end",
+                "seconds": output["seconds"], "tokens_per_second": len(ids) / output["seconds"] if output["seconds"] else None,
+                "peak_allocated_bytes": None, "backend": "vllm",
+                "backend_metrics": {key: output.get(key) for key in
+                    ("gpu_uuid", "batch_size", "timing_source", "gpu_memory_used_bytes", "finish_reason", "stop_reason")}}
+            store.put_record("generation", cid, raw, parents={"candidate": cid, "attempt": attempts[cid]})
+            store.put_record("generation_attempt_result", attempts[cid], {"status": "completed"}, parents={"attempt": attempts[cid]})
+            result = finalize_generation(store, cid, raw)
+            report = save_report(store, "generating", writer)
+            print(json.dumps({"generated": report["generated"], "planned": len(jobs), "model": candidates[cid]["model"],
+                "backend": "vllm", "gpu_uuid": output["gpu_uuid"], "output_tokens": len(ids),
+                "seconds": raw["seconds"], "eligible": result["eligible_for_execution"], "error": result["error"]}), flush=True)
+    finally:
+        pool.close()
+
+
+def generate_candidates(store, snapshot, tokenizer, jobs, device, writer, generator_factory, pool_factory=VllmPool):
     for attempt in store.record_items("generation_attempt"):
         if store.get_record("generation_attempt_result", attempt["id"]) is None:
             raw = store.get_record("generation", attempt["payload"]["candidate_id"])
             status = "completed" if raw is not None and raw["attempt_id"] == attempt["id"] else "interrupted"
             store.put_record("generation_attempt_result", attempt["id"], {"status": status}, parents={"attempt": attempt["id"]})
+    if snapshot["settings"]["backend"] == "vllm":
+        return generate_vllm_candidates(store, snapshot, tokenizer, jobs, writer, pool_factory)
     for model in snapshot["settings"]["models"]:
         generator = None
         try:
@@ -214,6 +298,8 @@ async def evaluate_candidate(store, runner, runtime, settings, job):
     generated = store.get_record("generation_result", cid)
     if generated is None or not generated["eligible_for_execution"]:
         raise ValueError("Execution requires a persisted eligible generation")
+    if not candidate.get("execution_selected", True):
+        raise ValueError("Execution candidate was not selected in the frozen plan")
     trajectory = store.get_record("trajectory", cid)
     graph = replay(trajectory["raw_content"], reasoning=trajectory["raw_reasoning"])
     repeats = []
@@ -245,7 +331,7 @@ async def evaluate_candidate(store, runner, runtime, settings, job):
 
 async def run_evaluation(runtime, source, training_run, credentials_path, run_id, device, *, phase="all",
                          resume_inflight_budget=False, resume_after_topup=False,
-                         generator_factory=TransformersGenerator, transport=None):
+                         generator_factory=TransformersGenerator, transport=None, vllm_pool_factory=VllmPool):
     if resume_inflight_budget and resume_after_topup:
         raise ValueError("Choose one budget recovery mode")
     if phase not in {"all", "generate", "execute"}:
@@ -274,13 +360,19 @@ async def run_evaluation(runtime, source, training_run, credentials_path, run_id
                     raise ValueError("Saved evaluation records failed integrity checks")
                 store.ensure_active()
                 if phase in {"all", "generate"}:
-                    generate_candidates(store, snapshot, tokenizer, jobs, device, writer, generator_factory)
+                    generate_candidates(store, snapshot, tokenizer, jobs, device, writer, generator_factory, vllm_pool_factory)
                 if phase in {"all", "execute"}:
                     if any(store.get_record("generation_result", cid) is None for _, _, cid, _ in jobs):
                         raise ValueError("Execution phase requires all planned generations to be saved")
-                    async with RequestRunner(store, runtime.requests, credentials, transport=transport) as runner:
+                    guard = CostBudgetGuard(store, settings.cost_budget) if settings.cost_budget is not None else None
+                    async with RequestRunner(store, runtime.requests, credentials, transport=transport, cost_budget=guard) as runner:
                         queue = asyncio.Queue()
-                        for job in jobs:
+                        execution_jobs = jobs
+                        if settings.execution_task_limit is not None:
+                            execution_jobs = sorted(jobs, key=lambda job: (job[3]["split"] != "train_smoke",
+                                digest({"seed": runtime.seed, "execution_task": job[3]["task_id"]}),
+                                job[3]["z"], job[3]["model"], job[3]["slot"]))
+                        for job in execution_jobs:
                             if store.get_record("candidate_result", job[2]) is None:
                                 queue.put_nowait(job)
 

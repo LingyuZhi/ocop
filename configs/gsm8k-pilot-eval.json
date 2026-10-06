@@ -1,0 +1,216 @@
+{
+  "config_version": "ocop.prototype.v1",
+  "contract_version": "ocop.graph.v1",
+  "seed": 20260921,
+  "artifacts_dir": "outputs",
+  "metrics_backend": "tensorboard",
+  "storage": "sqlite_and_files",
+  "benchmark": {
+    "name": "gsm8k",
+    "source_split": "train",
+    "train_tasks": 200,
+    "eval_tasks": 0,
+    "holdout_tasks": 50,
+    "dataset_id": "openai/gsm8k",
+    "subset": "main",
+    "revision": "cc7b047b6e5bb11b4f1af84efc572db110a51b3c",
+    "excluded_rows": [
+      204,
+      217,
+      244,
+      260,
+      712,
+      767,
+      839,
+      912,
+      1143,
+      1628,
+      1791,
+      1828,
+      1905,
+      2006,
+      2253,
+      3456,
+      4139,
+      4467,
+      4597,
+      4837,
+      4931,
+      5238,
+      5323,
+      5543,
+      5745,
+      5865,
+      6033,
+      6067,
+      6074,
+      7308
+    ]
+  },
+  "collection": {
+    "candidates_per_task": 6,
+    "complete_repeats": 5,
+    "max_repeats": 8,
+    "duplicate_graphs": "execute_independently",
+    "experience": [],
+    "candidate_concurrency": 2
+  },
+  "requests": {
+    "concurrency": 8,
+    "timeout_seconds": 180.0,
+    "max_attempts": 3,
+    "consecutive_exhausted_request_limit": 10,
+    "retry_backoff_seconds": 1.0
+  },
+  "strong_model": {
+    "provider": "deepseek",
+    "requested_model": "DeepSeek-V4.1-Flash",
+    "model_id": "deepseek-flash",
+    "verified_model_id": "deepseek-flash",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "thinking": true,
+    "reasoning_effort": "high",
+    "temperature": null,
+    "top_p": 1.0,
+    "max_output_tokens": 8192,
+    "answer_format": null,
+    "provider_order": null
+  },
+  "worker_model": {
+    "provider": "openrouter",
+    "requested_model": "GPT-4o-mini",
+    "model_id": "openai/gpt-4o-mini",
+    "verified_model_id": "openai/gpt-4o-mini",
+    "api_key_env": "OPENAI_API_KEY",
+    "thinking": null,
+    "reasoning_effort": null,
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_output_tokens": 4096,
+    "answer_format": null,
+    "provider_order": [
+      "OpenAI"
+    ]
+  },
+  "finalizer": {
+    "provider": "openrouter",
+    "requested_model": "GPT-4o-mini",
+    "model_id": "openai/gpt-4o-mini",
+    "verified_model_id": "openai/gpt-4o-mini",
+    "api_key_env": "OPENAI_API_KEY",
+    "thinking": null,
+    "reasoning_effort": null,
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_output_tokens": 4096,
+    "answer_format": "final_line_hashes_decimal",
+    "provider_order": [
+      "OpenAI"
+    ]
+  },
+  "policy": {
+    "model_path": "/data1/zhilingyu/models/Qwen3.5-2B",
+    "thinking": true,
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "max_new_tokens": 8192,
+    "constrained_decoding": false
+  },
+  "training": {
+    "representation": "raw_traj",
+    "full_parameter": true,
+    "precision": "bf16",
+    "optimizer": "adamw",
+    "learning_rate": 1e-05,
+    "epochs": 3,
+    "effective_batch_size": 4,
+    "max_sequence_length": 8192,
+    "gradient_checkpointing": true,
+    "max_idle_gpus": 6,
+    "checkpoint_selection": "last",
+    "overlength_policy": "report_and_wait"
+  },
+  "evaluation": {
+    "task_split": "holdout",
+    "target_z": [
+      0.0,
+      0.5,
+      1.0
+    ],
+    "candidates_per_condition": 1,
+    "complete_repeats": 5,
+    "models": [
+      "base",
+      "last_checkpoint"
+    ],
+    "backend": "vllm",
+    "max_repeats": 8,
+    "candidate_concurrency": 2,
+    "training_smoke": "first_training_candidate",
+    "execution_task_limit": 20,
+    "cost_budget": {
+      "max_usd": 1.35,
+      "input_per_million": 0.15,
+      "output_per_million": 0.6
+    },
+    "vllm": {
+      "python": "/data1/zhilingyu/ocop/outputs/environments/pilot-vllm/bin/python",
+      "environment_lock": "/data1/zhilingyu/ocop/configs/pilot-vllm/uv.lock",
+      "gpu_uuids": [
+        "GPU-ed6bccc9-9a6f-5307-fcf4-053013e25057",
+        "GPU-dcfeecc4-7eb4-2f3d-b6ef-6ceee7b03982",
+        "GPU-fda169f3-c3cc-dd18-e0a1-b71a261bfee8",
+        "GPU-90da4147-1ad6-0b79-aa3c-5d99e26e49bb",
+        "GPU-50ee8ecd-f6c1-cbff-37b2-3a5dffe2393d",
+        "GPU-792f1aa6-dd10-1bea-eff6-01074df47799"
+      ],
+      "batch_size": 16,
+      "max_model_len": 10240,
+      "max_num_batched_tokens": 4096,
+      "gpu_memory_utilization": 0.75,
+      "enforce_eager": true,
+      "cache_dir": "/data1/zhilingyu/ocop/outputs/environments/pilot-vllm/cache"
+    }
+  },
+  "diagnostics": {
+    "single_training_sample_fit_max_steps": 100,
+    "separate_checkpoint_and_results": true,
+    "sft_verification": {
+      "microbatch_size": 1,
+      "gradient_accumulation": 4,
+      "optimizer_steps": 2,
+      "resume_steps": 1,
+      "betas": [
+        0.9,
+        0.999
+      ],
+      "epsilon": 1e-08,
+      "weight_decay": 0.0,
+      "scheduler": "constant",
+      "max_grad_norm": 1.0,
+      "loss_chunk_tokens": 128,
+      "generation_max_new_tokens": 256,
+      "precision": "bf16 parameters and Adam moments; fp32 cross entropy",
+      "attention": "sdpa"
+    }
+  },
+  "training_runtime": {
+    "microbatch_size": 1,
+    "gradient_accumulation": 4,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "epsilon": 1e-08,
+    "weight_decay": 0.0,
+    "scheduler": "constant",
+    "max_grad_norm": 1.0,
+    "loss_chunk_tokens": 128,
+    "attention": "sdpa",
+    "precision": "bf16 parameters and Adam moments; fp32 cross entropy",
+    "shuffle": true,
+    "checkpoint_every_steps": 100,
+    "checkpoint_retention": "all",
+    "generation_max_new_tokens": 256
+  }
+}

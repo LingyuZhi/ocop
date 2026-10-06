@@ -143,6 +143,113 @@ def test_evaluation_split_is_explicit_and_preserves_default_serialization(tmp_pa
         snapshot(config, tokenizer)
 
 
+def test_execution_subsample_keeps_all_generations_and_paired_tasks(tmp_path, environment):
+    config = runtime(tmp_path)
+    config.benchmark["holdout_tasks"] = 2
+    config.evaluation.update(task_split="holdout", execution_task_limit=1)
+    report, status = run(config, environment)
+    assert status == 0 and report["finished"] and report["integrity_passed"]
+    assert report["generated"] == 14 and len(environment[1]) == 14
+    holdout = [row for row in report["candidates"] if row["split"] == "holdout"]
+    selected = [row for row in holdout if row["execution_selected"]]
+    assert len(selected) == 6 and len({row["task_id"] for row in selected}) == 1
+    assert all(row["status"] == "execution_not_selected" and row["label"] is None and not row["repeats"]
+               for row in holdout if not row["execution_selected"])
+    assert report["request_count"] == 200
+    groups = [group for group in report["groups"] if group["split"] == "holdout"]
+    assert all(group["planned"] == 2 and group["execution_planned"] == 1
+               and group["correct_execution_coverage_denominator"] == 1
+               and group["correct_execution_coverage"] == 1 for group in groups)
+    again, status = run(config, environment, phase="execute")
+    assert status == 0 and again["request_count"] == 200 and len(environment[1]) == 14
+
+
+def test_evaluation_cost_cap_stops_without_faking_completion(tmp_path, environment):
+    config = runtime(tmp_path)
+    config.evaluation["cost_budget"] = {"max_usd": 0.0001, "input_per_million": 0.15, "output_per_million": 0.6}
+    report, status = run(config, environment, lambda request: pytest.fail("Unexpected paid request"))
+    assert status == 1 and not report["finished"] and report["integrity_passed"]
+    assert report["halt_reason"] == "evaluation_cost_budget_exhausted"
+    assert report["cost_budget"]["cap_respected"] and report["attempt_count"] == 0
+    assert not report["engineering_passed"]
+
+
+def test_subsample_interruption_recovers_without_executing_excluded_graphs(tmp_path, environment, monkeypatch):
+    config = runtime(tmp_path)
+    config.benchmark["holdout_tasks"] = 2
+    config.evaluation.update(task_split="holdout", execution_task_limit=1)
+    original = RunStore.put_record
+    interrupted = []
+    def save(store, kind, key, payload, **kwargs):
+        if kind == "candidate_result" and payload["status"] == "execution_not_selected" and not interrupted:
+            interrupted.append(key)
+            raise RuntimeError("interrupt before exclusion is saved")
+        return original(store, kind, key, payload, **kwargs)
+    monkeypatch.setattr(RunStore, "put_record", save)
+    with pytest.raises(RuntimeError, match="before exclusion"):
+        run(config, environment)
+    report, status = run(config, environment)
+    assert status == 0 and report["finished"] and report["integrity_passed"]
+    assert report["request_count"] == 200 and len(environment[1]) == 14
+    assert all(not row["repeats"] for row in report["candidates"] if not row["execution_selected"])
+
+
+def vllm_runtime(config, tmp_path):
+    config.evaluation.update(backend="vllm", vllm={"python": "worker-python", "environment_lock": "worker-lock",
+        "cache_dir": str(tmp_path / "cache"), "gpu_uuids": [f"GPU-{index}" for index in range(6)]})
+    return config
+
+
+def vllm_mock_pool(tokenizer, calls, *, interrupt=False):
+    class Pool:
+        def __init__(self, settings, snapshot, log_dir):
+            self.settings = settings
+
+        def generate(self, jobs):
+            for job in reversed(jobs):
+                if interrupt and calls:
+                    raise RuntimeError("interrupt parallel generation")
+                calls.append(job["key"])
+                ids = tokenizer.encode("Design reasoning</think>\n\n" + VALID_GRAPH + tokenizer.eos_token, add_special_tokens=False)
+                gpu = (0 if job["model"] == "base" else 3) + (job["ordinal"] - 1) % 3
+                yield job, {"input_ids": job["input_ids"], "token_ids": ids, "finish_reason": "stop", "seconds": 1.0,
+                            "gpu_uuid": self.settings.gpu_uuids[gpu], "stop_reason": tokenizer.eos_token_id}
+
+        def close(self):
+            pass
+    return Pool
+
+
+def test_vllm_parallel_generation_preserves_raw_tokens_and_public_execution(tmp_path, environment, tokenizer):
+    config = vllm_runtime(runtime(tmp_path), tmp_path)
+    calls = []
+    pool = vllm_mock_pool(tokenizer, calls)
+    report, status = run(config, environment, vllm_pool_factory=pool)
+    assert status == 0 and report["finished"] and report["integrity_passed"]
+    assert len(calls) == 8 and report["request_count"] == 200
+    view = EvaluationView(path(config))
+    raw = [row["payload"] for row in view.record_items("generation")]
+    assert {row["backend_metrics"]["gpu_uuid"] for row in raw} == {f"GPU-{i}" for i in range(6)}
+    assert all(row["token_ids"][-1] == tokenizer.eos_token_id and row["reached_eos"] for row in raw)
+    assert all(row["backend"] == "vllm" and row["peak_allocated_bytes"] is None for row in raw)
+    repeated, status = run(config, environment, phase="execute", vllm_pool_factory=pool)
+    assert status == 0 and len(calls) == 8 and repeated["request_count"] == 200
+
+
+def test_vllm_interruption_reuses_saved_candidates(tmp_path, environment, tokenizer):
+    config = vllm_runtime(runtime(tmp_path), tmp_path)
+    calls = []
+    with pytest.raises(RuntimeError, match="parallel generation"):
+        run(config, environment, vllm_pool_factory=vllm_mock_pool(tokenizer, calls, interrupt=True))
+    assert len(calls) == 1
+    first = calls[0]
+    report, status = run(config, environment, vllm_pool_factory=vllm_mock_pool(tokenizer, calls))
+    assert status == 0 and report["finished"] and report["integrity_passed"]
+    assert len(calls) == 8 and calls.count(first) == 1
+    results = [row["payload"]["status"] for row in EvaluationView(path(config)).record_items("generation_attempt_result")]
+    assert results.count("interrupted") == 7
+
+
 def test_holdout_execution_report_and_resume_preserve_source_split(tmp_path, environment):
     config = runtime(tmp_path)
     config.benchmark["holdout_tasks"] = 1

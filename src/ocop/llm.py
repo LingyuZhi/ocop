@@ -171,7 +171,7 @@ class RequestLimits:
 
 class RequestRunner:
     def __init__(self, store: RunStore, config: RequestConfig, credentials: dict[str, str], *, transport=None,
-                 shared_limits: RequestLimits | None = None):
+                 shared_limits: RequestLimits | None = None, cost_budget=None):
         self.store = store
         self.config = config
         self.credentials = credentials
@@ -182,6 +182,7 @@ class RequestRunner:
         self.semaphore = limits.semaphore
         self._locks: dict[str, asyncio.Lock] = {}
         self._cooldowns = limits.cooldowns
+        self.cost_budget = cost_budget
         requests = {row["id"]: row for row in store.rows("requests")}
         for attempt in store.rows("attempts"):
             if attempt["body_blob"] and attempt["http_status"] in {200, 402}:
@@ -223,6 +224,8 @@ class RequestRunner:
                         while self._cooldowns.get(origin, 0) > time.time():
                             await asyncio.sleep(self._cooldowns[origin] - time.time())
                         self.store.ensure_active()
+                        if self.cost_budget is not None:
+                            await self.cost_budget.reserve(request, model, messages)
                         attempt = self.store.start_attempt(request["id"])
                         started = time.monotonic()
                         try:
@@ -246,6 +249,8 @@ class RequestRunner:
                 outcome.update(request_id=request["id"], attempt_id=attempt["id"])
                 terminal = outcome["status"] != "infra_failed" or attempt["number"] >= self.config.max_attempts
                 self.store.finish_attempt(attempt, outcome, terminal=terminal, failure_limit=self.config.consecutive_exhausted_request_limit)
+                if self.cost_budget is not None:
+                    await self.cost_budget.settle(f"{request['id']}:{attempt['number']}", outcome)
                 if terminal:
                     return outcome
 

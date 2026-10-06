@@ -20,7 +20,7 @@ from ocop.policy_generation import parse_generation
 from ocop.scoring import normalize_reference, score_answer
 from ocop.storage import export_run, read_database
 from ocop.trajectories import digest, file_hash, policy_messages
-from ocop.usage import summarize_usage
+from ocop.usage import cost_budget_summary, summarize_usage
 
 
 class EvaluationView:
@@ -59,6 +59,9 @@ class EvaluationView:
     def attempts_for(self, request_id):
         return [row for row in self.tables["attempts"] if row["request_id"] == request_id]
 
+    def rows(self, name):
+        return self.tables[name]
+
 
 def graph_comparison(left, right):
     result = {"left": left["candidate_id"], "right": right["candidate_id"], "task_id": left["task_id"],
@@ -94,6 +97,11 @@ def build_report(view, phase):
         "scores_recomputed": True, "repeat_associations": True, "labels_recomputed": True,
         "terminal_results": True, "repeat_budgets": True,
         "request_budgets": all(len(view.attempts_for(r["id"])) <= config.requests.max_attempts for r in view.tables["requests"])}
+    budget = cost_budget_summary(view, settings.cost_budget) if settings.cost_budget is not None else None
+    if budget is not None:
+        checks["cost_budget"] = budget["cap_respected"] and budget["all_attempts_reserved"]
+    if settings.execution_task_limit is not None:
+        checks["execution_selection"] = True
     candidate_ids = {row["id"] for row in candidates}
     for kind in ("generation", "generation_result", "trajectory", "graph", "label", "candidate_result"):
         if not set(view.by_kind[kind]).issubset(candidate_ids):
@@ -142,6 +150,10 @@ def build_report(view, phase):
         elif generated and generated["eligible_for_execution"]:
             checks["legal_graphs"] = False
         items = sorted(repeats[cid], key=lambda item: int(item["repeat_id"]))
+        selected = candidate.get("execution_selected", True)
+        if settings.execution_task_limit is not None:
+            checks["execution_selection"] &= selected or (not items and not label and not any(
+                view.links[item["id"]].get("candidate") == cid for item in view.record_items("execution")))
         checks["repeat_budgets"] &= len(items) <= settings.max_repeats
         for item in items:
             execution = view.get_record("execution_result", item["execution_id"])
@@ -160,7 +172,9 @@ def build_report(view, phase):
         if terminal:
             checks["terminal_results"] &= bool(generated) and (
                 (not generated["eligible_for_execution"] and terminal["status"] == "generation_invalid")
-                or (generated["eligible_for_execution"] and label is not None
+                or (generated["eligible_for_execution"] and not selected and not items and label is None
+                    and terminal["status"] == "execution_not_selected")
+                or (generated["eligible_for_execution"] and selected and label is not None
                     and aggregated["status"] in {"complete", "incomplete"} and terminal["status"] == aggregated["status"]))
         details.append({**candidate, "candidate_id": cid, "status": terminal["status"] if terminal else "pending",
             "generated": generated is not None, "generation": generated,
@@ -181,6 +195,9 @@ def build_report(view, phase):
         planned = len(rows)
         generated = sum(row["generated"] for row in rows)
         eligible = sum(bool(row["generation"] and row["generation"]["eligible_for_execution"]) for row in rows)
+        execution_rows = [row for row in rows if row.get("execution_selected", True)]
+        execution_planned = len(execution_rows)
+        execution_eligible = sum(bool(row["generation"] and row["generation"]["eligible_for_execution"]) for row in execution_rows)
         complete = [row for row in rows if row["label"] and row["label"]["status"] == "complete"]
         successful = sum(row["label"]["success_count"] for row in complete)
         incomplete = sum(row["status"] == "incomplete" for row in rows)
@@ -192,12 +209,14 @@ def build_report(view, phase):
         group = {"split": split, "model": model, "z": z, "planned": planned, "generated": generated,
             "pending": sum(row["status"] == "pending" for row in rows), "eligible_graphs": eligible,
             "complete_labels": len(complete), "incomplete_labels": incomplete,
-            "execution_incomplete_rate": incomplete / eligible if eligible else None,
+            "execution_planned": execution_planned, "execution_eligible_graphs": execution_eligible,
+            "execution_not_selected": planned - execution_planned,
+            "execution_incomplete_rate": incomplete / execution_eligible if execution_eligible else None,
             "completed_graph_successes": successful, "completed_graph_execution_denominator": len(complete) * settings.complete_repeats,
             "success_rate": successful / (len(complete) * settings.complete_repeats) if complete else None,
             "label_distribution": dict(Counter(str(row["label"]["mean_outcome"]) for row in complete)),
-            "correct_execution_coverage_count": observed, "correct_execution_coverage_denominator": planned,
-            "correct_execution_coverage": observed / planned,
+            "correct_execution_coverage_count": observed, "correct_execution_coverage_denominator": execution_planned,
+            "correct_execution_coverage": observed / execution_planned,
             "generation_rate_denominator": generated, "execution_status": "无可执行图" if generated == planned and not eligible else "有可执行图" if eligible else "生成待完成",
             "generation_seconds": sum(row["generation_seconds"] or 0 for row in rows),
             "token_totals": {key: sum((row["lengths"] or {}).get(key, 0) for row in rows)
@@ -230,7 +249,9 @@ def build_report(view, phase):
         "groups": groups, "candidates": details, "comparisons": comparisons,
         "request_count": len(view.tables["requests"]), "attempt_count": len(view.tables["attempts"]),
         "usage": summarize_usage(view, view.tables["requests"]),
-        "provenance": {key: snapshot[key] for key in ("source", "training", "models", "generation_config", "executor_hash", "environment")}}
+        **({"cost_budget": budget} if budget is not None else {}),
+        "provenance": {**{key: snapshot[key] for key in ("source", "training", "models", "generation_config", "executor_hash", "environment")},
+                       **({"inference_environment": snapshot["inference_environment"]} if "inference_environment" in snapshot else {})}}
 
 
 def write_metrics(writer, report):
@@ -243,7 +264,8 @@ def write_metrics(writer, report):
                   "eligible": int(row["generation"]["eligible_for_execution"]), "seconds": row["generation_seconds"],
                   "peak_allocated_bytes": row["peak_allocated_bytes"]}
         for name, value in values.items():
-            writer.add_scalar(f"{prefix}/{name}", value, row["ordinal"])
+            if value is not None:
+                writer.add_scalar(f"{prefix}/{name}", value, row["ordinal"])
         logged.add(row["candidate_id"])
     writer.ocop_candidates = logged
     if getattr(writer, "ocop_snapshot", None) != report["snapshot_records"]:
@@ -303,11 +325,17 @@ def markdown_report(report):
     for g in report["groups"]:
         score = f"{g['completed_graph_successes']}/{g['completed_graph_execution_denominator']}" if g["complete_labels"] else "未测得"
         lines.append(f"| {g['split']} | {g['model']} | {g['z']} | {g['generated']}/{g['planned']} | {g['eligible_graphs']} | "
-                     f"{g['complete_labels']} | {score} | {g['correct_execution_coverage_count']}/{g['planned']} | {g['execution_status']} |")
-    lines += ["", "终止率、解析率、合法率及截断率以已完成生成为分母；正确执行覆盖以全部计划候选为分母。",
+                     f"{g['complete_labels']} | {score} | {g['correct_execution_coverage_count']}/{g['correct_execution_coverage_denominator']} | {g['execution_status']} |")
+    execution_tasks = {row["task_id"] for row in report["candidates"] if row["split"] != "train_smoke" and row.get("execution_selected", True)}
+    lines += ["", "终止率、解析率、合法率及截断率以已完成生成为分母；正确执行覆盖以预先选定的执行候选为分母。",
               "完整标签成功率仅使用完成规定次数的图；待完成和incomplete单列。训练题smoke单列。",
-              f"评估来源：{', '.join(evaluation_splits)}；共 {len(evaluation_tasks)} 道题。",
+              f"评估来源：{', '.join(evaluation_splits)}；共 {len(evaluation_tasks)} 道题，执行抽样 {len(execution_tasks)} 道题。",
+              "执行子集由 seed 与 task ID 确定，在生成前固定；未抽中题的合法图仅报告生成表现，不计为执行失败。",
               "完整长度、usage、错误、角色与边变化、原始记录关联见 evaluation-report.json。", "", "## 样例", ""]
+    if "cost_budget" in report:
+        budget = report["cost_budget"]
+        lines[7:7] = [f"执行费用上限 ${budget['max_usd']:.2f}；累计含未知请求预留 ${budget['accounted_cost_usd']:.6f}；"
+                      f"其中未知预留 ${budget['reserved_unknown_usd']:.6f}。", ""]
     seen = set()
     for row in report["candidates"]:
         key = (row["split"], row["model"], row["status"], (row["generation"] or {}).get("error"))
