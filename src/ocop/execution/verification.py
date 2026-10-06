@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import json
 from pathlib import Path
@@ -8,7 +7,7 @@ from ocop.execution.single import run_execution
 from ocop.runtime.storage import export_run, inspect_run
 
 
-async def verify(args) -> int:
+async def verify(args) -> tuple[dict, int]:
     config = load_config(args.config)
     path = Path(config.artifacts_dir) / "runs" / args.run_id
     summary = {"run_id": args.run_id, "passed": False, "phases": [], "checks": {}}
@@ -22,7 +21,7 @@ async def verify(args) -> int:
                 "execution_id", "repeat_id", "executor_hash", "status", "score", "request_count", "attempt_count", "usage")}})
             print(f"Finished {phase}: status={report['status']}, requests={report.get('request_count')}, attempts={report.get('attempt_count')}", flush=True)
             if status != 0:
-                return 1
+                return summary, 1
         first, resumed, independent = reports
         first_requests = {node["request_id"] for node in first["nodes"].values()}
         next_requests = {node["request_id"] for node in independent["nodes"].values()}
@@ -42,22 +41,8 @@ async def verify(args) -> int:
         }
         summary["store"] = inspect_run(path)
         summary["passed"] = all(summary["checks"].values())
-        return 0 if summary["passed"] else 1
+        return summary, 0 if summary["passed"] else 1
     finally:
         path.mkdir(parents=True, exist_ok=True)
         (path / "verification.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"Verification passed={summary['passed']}; report={path / 'verification.json'}", flush=True)
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Verify two independent executor repeats and persisted recovery")
-    parser.add_argument("--config", type=Path, default=Path("config/prototype.json"))
-    parser.add_argument("--task", type=Path, default=Path("examples/execution/task.json"))
-    parser.add_argument("--trajectory", type=Path, default=Path("examples/graph/valid.json"))
-    parser.add_argument("--credentials", type=Path, default=Path("my_docs/secrets/credentials.env"))
-    parser.add_argument("--run-id", required=True)
-    return asyncio.run(verify(parser.parse_args()))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

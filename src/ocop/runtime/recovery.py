@@ -221,3 +221,38 @@ async def automatic_recovery(path, config, snapshot, settings, credentials_path,
             raise StoreConflict("Automatic recovery probe budget exhausted")
         finally:
             export_store(store)
+
+
+def resume_run(run_path, credentials_path, recover_only=False):
+    from ocop.evaluation.pipeline import prepare_evaluation, run_evaluation
+    from ocop.runtime.config import RuntimeConfig, load_config
+    from ocop.runtime.storage import ReadStore
+
+    path = run_path.resolve()
+    view = ReadStore(path)
+    if view.archive['config']['purpose'] == 'collection':
+        if not recover_only:
+            raise ValueError('Collection recovery requires --recover-only; resume its experiment separately')
+        archived = view.archive['config']
+        config = RuntimeConfig.model_validate(archived['runtime'])
+        if (Path(config.artifacts_dir) / 'runs' / path.name).resolve() != path:
+            raise StoreConflict('Run directory differs from its archived configuration')
+        recovery = recover_connections(path, config, archived, credentials_path=credentials_path)
+        print(json.dumps({'recovery': recovery['policy'], 'failed_requests': len(recovery['evidence']), 'historical_results': 'preserved', 'budgets': 'cumulative'}), flush=True)
+        return ({'historical_results': 'preserved', 'budgets': 'cumulative'}, 0)
+    config = load_config(path / 'config.json')
+    archived = EvaluationView(path).archive['config']
+    source, training = (Path(archived['source']['path']), Path(archived['training']['path']))
+    snapshot, _ = prepare_evaluation(config, source, training)
+    if digest(snapshot) != digest(archived):
+        raise StoreConflict('Evaluation inputs or implementation changed since the saved run')
+    if (Path(config.artifacts_dir) / 'runs' / path.name).resolve() != path:
+        raise StoreConflict('Run directory differs from its archived configuration')
+    load_credentials(credentials_path, {config.worker_model.api_key_env, config.finalizer.api_key_env})
+    recovery = recover_connections(path, config, snapshot, credentials_path=credentials_path)
+    print(json.dumps({'recovery': recovery['policy'], 'failed_requests': len(recovery['evidence']), 'historical_results': 'preserved', 'budgets': 'cumulative'}), flush=True)
+    if recover_only:
+        return ({'historical_results': 'preserved', 'budgets': 'cumulative'}, 0)
+    report, status = asyncio.run(run_evaluation(config, source, training, credentials_path, path.name, 'cuda:0', phase='execute'))
+    print(json.dumps({key: report[key] for key in ('run_id', 'generated', 'terminal', 'planned', 'finished', 'integrity_passed', 'engineering_passed', 'halt_reason')}, indent=2), flush=True)
+    return (report, status)

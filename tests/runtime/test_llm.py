@@ -1,3 +1,4 @@
+from tests.support import response, CONFIG, LIMITS, MESSAGES, MODEL
 import asyncio
 import json
 from pathlib import Path
@@ -11,16 +12,8 @@ from ocop.runtime.llm import RequestRunner, budget_retry_deadline, load_credenti
 from ocop.runtime.storage import RunStore, StoreConflict
 
 
-CONFIG = Path(__file__).resolve().parents[1] / "config/prototype.json"
-MODEL = load_config(CONFIG).worker_model
-LIMITS = RequestConfig(concurrency=2, timeout_seconds=2.0, max_attempts=3,
-                       consecutive_exhausted_request_limit=2, retry_backoff_seconds=0.0)
-MESSAGES = [{"role": "user", "content": "Test input"}]
 
 
-def response(finish="stop", content="5", **extra):
-    return {"id": "provider-response", "model": MODEL.model_id,
-            "choices": [{"finish_reason": finish, "message": {"content": content, "reasoning_content": "A thought"}}], **extra}
 
 
 def run_call(store, handler, key="request"):

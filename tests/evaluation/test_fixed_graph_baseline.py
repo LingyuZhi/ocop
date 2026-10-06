@@ -11,14 +11,12 @@ import pytest
 import ocop.evaluation.pipeline as evaluation
 from ocop.diagnostics.services import provenance
 from ocop.runtime.storage import RunStore, StoreConflict
-from test_collection import reply
-from test_evaluation import environment, path, run, runtime, snapshot, tokenizer
+from tests.support import reply
+from tests.support import policy_environment as environment, evaluation_path as path, evaluate as run, evaluation_runtime as runtime, evaluation_snapshot as snapshot, policy_tokenizer as tokenizer
 
 
-ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("fixed_graph_baseline", ROOT / "scripts/fixed_graph_baseline.py")
-baseline = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(baseline)
+ROOT = Path(__file__).resolve().parents[2]
+import ocop.evaluation.baseline as baseline
 
 
 @pytest.fixture
@@ -32,7 +30,7 @@ def prepared(tmp_path, environment, tokenizer, monkeypatch):
     config = runtime(tmp_path)
     report, status = run(config, environment)
     assert status == 0 and report["finished"]
-    settings = baseline.Settings.model_validate_json((ROOT / "config/fixed-graph-baseline.json").read_text())
+    settings = baseline.Settings.model_validate_json((ROOT / "configs/fixed-graph-baseline.json").read_text())
     config, frozen = baseline.prepare(path(config), settings)
     return config, frozen
 
@@ -147,8 +145,7 @@ def test_pairing_keeps_zero_legal_groups_and_uses_common_tasks():
 
 def test_final_verification_detects_rewritten_report(prepared, monkeypatch):
     execute(prepared)
-    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
-    verification = importlib.import_module("verify_evaluation")
+    import ocop.evaluation.verification as verification
     result = verification.verify(run_path(prepared))
     assert result["passed"] and result["checks"]["jsonl_matches_database"]
     report_path = run_path(prepared) / "baseline-report.json"

@@ -1,3 +1,4 @@
+from tests.support import collection_runtime as runtime, local_environment, reply, collect, SOURCE, VALID_GRAPH
 import asyncio
 import copy
 import hashlib
@@ -18,40 +19,15 @@ from ocop.execution.labels import aggregate_label
 from ocop.runtime.storage import RunStore, StoreConflict, read_database
 
 
-ROOT = Path(__file__).resolve().parents[1]
-VALID_GRAPH = (ROOT / "examples/graph/valid.json").read_text()
-SOURCE = [{"question": f"Question {i}", "answer": "ReferenceSecret calculation\n#### 5"} for i in range(50)]
+ROOT = Path(__file__).resolve().parents[2]
 
 
-def runtime(tmp_path, *, candidates=1, repeats=5, maximum=8, concurrency=2):
-    config = load_config(ROOT / "config/prototype.json")
-    config.artifacts_dir = str(tmp_path / "artifacts")
-    config.benchmark.update(train_tasks=1, eval_tasks=1)
-    config.collection.update(candidates_per_task=candidates, complete_repeats=repeats,
-                             max_repeats=maximum, candidate_concurrency=concurrency)
-    config.requests.retry_backoff_seconds = 0.0
-    return config
 
 
-@pytest.fixture(autouse=True)
-def local_environment(monkeypatch):
-    monkeypatch.setattr(collection, "load_source", lambda config, artifacts: SOURCE)
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
 
-def reply(request, *, graph=VALID_GRAPH, answer="#### 5", finish="stop", reasoning="Design reasoning", usage=True):
-    body = json.loads(request.content)
-    strong = body["model"] == "deepseek-flash"
-    return httpx.Response(200, json={"model": body["model"], "provider": "OpenAI",
-        "choices": [{"finish_reason": finish, "message": {"content": graph if strong else answer,
-                                                          "reasoning_content": reasoning if strong else None}}],
-        "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5} if usage else None})
 
 
-def collect(config, handler, *, manifest_only=False):
-    return asyncio.run(collection.run_collection(config, Path("absent.env"), "test",
-        manifest_only=manifest_only, transport=httpx.MockTransport(handler)))
 
 
 def payloads(config, kind):
@@ -62,7 +38,7 @@ def payloads(config, kind):
 
 
 def test_manifest_sampling_split_and_integrity():
-    config = BenchmarkConfig.model_validate(load_config(ROOT / "config/prototype.json").benchmark)
+    config = BenchmarkConfig.model_validate(load_config(ROOT / "configs/prototype.json").benchmark)
     first = build_manifest(SOURCE, config, 42)
     assert first == build_manifest(SOURCE, config, 42)
     assert first != build_manifest(SOURCE, config, 43)
@@ -354,7 +330,7 @@ def test_source_loading_preserves_declared_dataset_splits(tmp_path, monkeypatch)
     (local / "README.md").write_text("---\n" + json.dumps(metadata) + "\n---\n")
     actual_load = datasets.load_dataset
     monkeypatch.setattr(datasets, "load_dataset", lambda path, *args, **kwargs: actual_load(str(local), *args, **kwargs))
-    config = BenchmarkConfig.model_validate(load_config(ROOT / "config/prototype.json").benchmark)
+    config = BenchmarkConfig.model_validate(load_config(ROOT / "configs/prototype.json").benchmark)
     source = load_source(config, tmp_path / "cache")
     assert len(source) == 2
     assert source[0] == SOURCE[0]
@@ -364,7 +340,7 @@ def test_collection_verifier_recomputes_labels_and_rejects_corruption(tmp_path):
     import sqlite3
 
     config = runtime(tmp_path, repeats=1, maximum=2)
-    verify = runpy.run_path(str(ROOT / "scripts/verify_collection.py"))["verify"]
+    from ocop.collection.verification import verify
     collect(config, reply, manifest_only=True)
     path = Path(config.artifacts_dir) / "runs/test"
     assert verify(path, allow_pending=True)["passed"]

@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import json
 import os
@@ -321,53 +320,3 @@ async def run(runtime, snapshot, run_id, credentials_path, *, prepare_only=False
             finally:
                 result = save_report(store.path, writer)
     return result, 0 if (result["finished"] or prepare_only) and result["integrity_passed"] and result["tensorboard_passed"] and not result["halt_reason"] else 1
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--source", type=Path)
-    parser.add_argument("--config", type=Path, default=Path("config/fixed-graph-baseline.json"))
-    parser.add_argument("--run-id")
-    parser.add_argument("--credentials", type=Path, default=Path("my_docs/secrets/credentials.env"))
-    parser.add_argument("--prepare-only", action="store_true")
-    parser.add_argument("--resume-after-topup", action="store_true")
-    parser.add_argument("--report", type=Path)
-    parser.add_argument("--experiment-config", type=Path)
-    parser.add_argument("--verify-experiment", type=Path)
-    parser.add_argument("--recovery-config", type=Path, default=Path("config/auto-recovery.json"))
-    args = parser.parse_args()
-    if args.experiment_config or args.verify_experiment:
-        from ocop.collection.expansion import ExpansionConfig, supervise_expansion, verify_suite
-        from ocop.runtime.recovery import AutoRecoveryConfig
-
-        if args.verify_experiment:
-            with FileLock(args.verify_experiment / "writer.lock", timeout=0):
-                result = verify_suite(args.verify_experiment)
-            status = 0 if result["integrity_passed"] else 1
-        else:
-            if not args.run_id:
-                parser.error("--run-id is required")
-            settings = ExpansionConfig.model_validate_json(args.experiment_config.read_text())
-            recovery = AutoRecoveryConfig.model_validate_json(args.recovery_config.read_text())
-            result, status = asyncio.run(supervise_expansion(settings, args.run_id, args.credentials,
-                recovery_settings=recovery, prepare_only=args.prepare_only, after_topup=args.resume_after_topup))
-        print(json.dumps({k: v for k, v in result.items() if k in {
-            "phase", "path", "integrity_passed", "execution_finished", "semantic_review_status"}}, indent=2))
-        raise SystemExit(status)
-    if args.report:
-        with FileLock(args.report / "writer.lock", timeout=0), SummaryWriter(str(args.report / "tensorboard"), purge_step=0) as writer:
-            result = save_report(args.report, writer)
-        status = 0 if result["finished"] and result["integrity_passed"] and result["tensorboard_passed"] else 1
-    else:
-        if not args.source or not args.run_id:
-            parser.error("--source and --run-id are required")
-        settings = Settings.model_validate_json(args.config.read_text())
-        runtime, snapshot = prepare(args.source, settings)
-        result, status = asyncio.run(run(runtime, snapshot, args.run_id, args.credentials,
-            prepare_only=args.prepare_only, after_topup=args.resume_after_topup))
-    print(json.dumps({k: result[k] for k in ("run_id", "planned", "terminal", "finished", "integrity_passed", "halt_reason")}, indent=2))
-    raise SystemExit(status)
-
-
-if __name__ == "__main__":
-    main()

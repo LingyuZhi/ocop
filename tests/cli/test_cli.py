@@ -7,7 +7,7 @@ from ocop.cli import main
 from ocop.runtime.storage import RunStore
 
 
-EXAMPLES = Path(__file__).resolve().parents[1] / "examples" / "graph"
+EXAMPLES = Path(__file__).resolve().parents[2] / "examples" / "graph"
 
 
 @pytest.mark.parametrize(("name", "status", "valid"), [("valid.json", 0, True), ("invalid.json", 1, False)])
@@ -40,11 +40,69 @@ def test_missing_file_reports_io_error(tmp_path, capsys):
 
 
 @pytest.mark.parametrize("command", ["prepare"])
-def test_reserved_commands_fail_explicitly(command, capsys):
+def test_removed_placeholder_command_is_rejected(command, capsys):
     with pytest.raises(SystemExit) as exc:
         main([command])
     assert exc.value.code == 2
-    assert "not implemented yet" in capsys.readouterr().err
+    assert "invalid choice" in capsys.readouterr().err
+
+
+def test_collection_verification_uses_shared_run_records(tmp_path, monkeypatch, capsys):
+    from tests.support import collect, collection_runtime, reply, SOURCE
+    import ocop.collection.pipeline as collection
+
+    monkeypatch.setattr(collection, "load_source", lambda *_args: SOURCE)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    config = collection_runtime(tmp_path)
+    collect(config, reply)
+    path = Path(config.artifacts_dir) / "runs/test"
+    output = tmp_path / "verification.json"
+    capsys.readouterr()
+    assert main(["verify", "collection", str(path), "--output", str(output)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["passed"] and report["finished"]
+    assert json.loads(output.read_text()) == report
+
+
+def test_supervision_cannot_override_generation_only_request(capsys):
+    assert main(["evaluate", "--source", "source", "--training-run", "training", "--run-id", "run",
+                 "--supervise", "--phase", "generate"]) == 2
+    assert "Supervision controls phases" in capsys.readouterr().err
+
+
+def test_expansion_verification_refuses_an_active_writer(tmp_path, capsys):
+    from filelock import FileLock
+
+    with FileLock(tmp_path / "writer.lock", timeout=0):
+        assert main(["verify", "experiment", str(tmp_path)]) == 2
+    assert "could not be acquired" in capsys.readouterr().err
+
+
+def test_executor_verification_retains_fresh_resume_and_independent_repeats(tmp_path, monkeypatch):
+    import httpx
+    import ocop.execution.single as execution
+    from ocop.runtime.llm import RequestRunner
+
+    config = json.loads((EXAMPLES.parents[1] / "configs/prototype.json").read_text())
+    config["artifacts_dir"] = str(tmp_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config))
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(200, json={"model": "openai/gpt-4o-mini", "provider": "OpenAI",
+            "choices": [{"finish_reason": "stop", "message": {"content": "#### 5"}}]})
+
+    monkeypatch.setattr(execution, "RequestRunner", lambda *args: RequestRunner(*args, transport=httpx.MockTransport(handler)))
+    assert main(["verify", "executor", "--config", str(config_path), "--run-id", "verified",
+                 "--credentials", str(tmp_path / "missing.env")]) == 0
+    report = json.loads((tmp_path / "runs/verified/verification.json").read_text())
+    assert report["passed"] and len(calls) == 10
+    assert report["checks"]["resume_no_new_requests"]
+    assert report["checks"]["independent_requests"]
 
 
 def test_read_only_run_inspection_and_export(tmp_path, capsys):
@@ -68,7 +126,7 @@ def test_execute_cli_scores_without_retry_and_resumes(tmp_path, monkeypatch, cap
     from ocop.runtime.llm import RequestRunner
 
     root = EXAMPLES.parents[1]
-    config = json.loads((root / "config/prototype.json").read_text())
+    config = json.loads((root / "configs/prototype.json").read_text())
     config["artifacts_dir"] = str(tmp_path / "artifacts")
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(config))

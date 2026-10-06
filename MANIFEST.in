@@ -1,5 +1,4 @@
 include .python-version
 include uv.lock
-recursive-include config *.json
+recursive-include configs *.json *.toml *.lock
 recursive-include examples *.json
-recursive-include scripts *.py

@@ -1,3 +1,4 @@
+import ocop.runtime.recovery as recovery
 import asyncio
 import copy
 import json
@@ -16,8 +17,7 @@ from ocop.runtime.llm import RequestLimits, RequestRunner
 from ocop.collection.replication import coverage, holm_adjust, paired_statistics, prepare_snapshot, replication_report, run_replication, select_pairs
 from ocop.runtime.storage import ReadStore, RunStore, StoreConflict
 from ocop.runtime.storage import digest
-from test_collection import SOURCE, collect, local_environment, reply, runtime
-from test_evaluation import recovery_module
+from tests.support import SOURCE, collect, local_environment, reply, collection_runtime as runtime
 
 
 def prepared(tmp_path, required=2, maximum=3):
@@ -224,7 +224,7 @@ def test_collection_transport_recovery_preserves_completed_data(tmp_path):
     assert status == 1 and report["halt_reason"] == "consecutive_request_failures"
     source = Path(config.artifacts_dir) / "runs/test"
     before = ReadStore(source)
-    module = recovery_module()
+    module = recovery
 
     def failed_probe(config, **kwargs):
         raise httpx.ConnectError("still unavailable")
@@ -259,7 +259,7 @@ def test_collection_connection_recovery_rejects_http_failures(tmp_path):
     source = Path(config.artifacts_dir) / "runs/test"
     view = ReadStore(source)
     with pytest.raises(StoreConflict):
-        recovery_module().recover_connections(source, config, view.archive["config"],
+        recovery.recover_connections(source, config, view.archive["config"],
             probe=lambda config, **kwargs: pytest.fail("HTTP failures must not probe"))
     assert not ReadStore(source).record_items("recovery")
 
@@ -285,7 +285,7 @@ def test_collection_recovery_probes_both_failed_providers(tmp_path):
         probed.append(providers)
         return [{"http_status": 200, "models": [config.worker_model.model_id, config.strong_model.model_id]}]
 
-    recovery_module().recover_connections(source, config, before.archive["config"], probe=probe)
+    recovery.recover_connections(source, config, before.archive["config"], probe=probe)
     assert probed == [{"openrouter", "deepseek"}]
     after = ReadStore(source)
     assert after.rows("requests") == before.rows("requests")
@@ -296,7 +296,7 @@ def test_collection_recovery_probes_both_failed_providers(tmp_path):
 
 def test_recovery_model_probes_authenticate_and_validate_both_services(tmp_path, monkeypatch):
     config = runtime(tmp_path)
-    module = recovery_module()
+    module = recovery
     client = httpx.Client
     hosts = []
 

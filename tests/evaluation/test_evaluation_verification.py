@@ -4,13 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from test_collection import VALID_GRAPH
+from tests.support import VALID_GRAPH
 
 
-SPEC = importlib.util.spec_from_file_location("verify_evaluation",
-    Path(__file__).resolve().parents[1] / "scripts/verify_evaluation.py")
-verification = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(verification)
+import ocop.evaluation.verification as verification
 
 
 def reports():

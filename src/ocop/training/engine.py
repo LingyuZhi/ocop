@@ -434,7 +434,7 @@ def train(config_path, data, output, device, resume_checkpoint=None, verify_fina
             if config_path is not None and load_config(config_path).model_dump() != config.model_dump():
                 raise ValueError("Resume configuration differs from the archived run configuration")
         else:
-            config = load_config(config_path or Path("config/prototype.json"))
+            config = load_config(config_path or Path("configs/prototype.json"))
             training_settings(config)
             output.mkdir(exist_ok=False)
             write_json(output / "config.json", config.model_dump())

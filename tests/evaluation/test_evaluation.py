@@ -1,3 +1,5 @@
+from tests.support import evaluation_runtime as runtime, evaluation_snapshot as snapshot, raw_output, policy_environment as environment, evaluate as run, evaluation_path as path, policy_tokenizer as tokenizer
+import ocop.runtime.recovery as recovery
 import asyncio
 import importlib.util
 import json
@@ -16,10 +18,10 @@ from ocop.execution.executor import executor_config, executor_hash
 from ocop.inference.transformers import candidate_seed, generation_config, parse_generation
 from ocop.runtime.storage import RunStore, StoreConflict
 from ocop.training.data import policy_messages
-from test_collection import SOURCE, VALID_GRAPH, reply
+from tests.support import SOURCE, VALID_GRAPH, reply
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_archived_snapshot_allows_verified_producer_with_new_consumer_code():
@@ -35,81 +37,22 @@ def test_archived_snapshot_allows_verified_producer_with_new_consumer_code():
     assert not evaluation.archived_snapshot_matches(current, archived)
 
 
-@pytest.fixture(scope="module")
-def tokenizer():
-    return AutoTokenizer.from_pretrained("/data1/zhilingyu/models/Qwen3.5-2B", local_files_only=True)
 
 
-def runtime(tmp_path):
-    config = load_config(ROOT / "config/prototype.json")
-    config.artifacts_dir = str(tmp_path / "artifacts")
-    config.benchmark.update(train_tasks=1, eval_tasks=1)
-    config.requests.retry_backoff_seconds = 0.0
-    return config
 
 
-def snapshot(config, tokenizer):
-    settings = evaluation.EvaluationConfig.model_validate(config.evaluation)
-    manifest = build_manifest(SOURCE, BenchmarkConfig.model_validate(config.benchmark), config.seed)
-    smoke = {"candidate_id": "source-candidate", "task_id": manifest["tasks"][0]["task_id"], "z": 1.0}
-    return {"purpose": "evaluation", "version": "ocop.evaluation.v1", "runtime": config.model_dump(),
-        "settings": settings.model_dump(), "task_manifest": manifest, "training_smoke": smoke,
-        "candidates": evaluation.candidate_plan(manifest, smoke, settings, config.seed),
-        "executor": executor_config(config), "executor_hash": executor_hash(config),
-        "generation_config": generation_config(config.policy, tokenizer).to_dict(),
-        "models": {"base": {"path": "base"}, "last_checkpoint": {"path": "checkpoint"}},
-        "source": {"path": "source"}, "training": {"path": "training"}, "environment": {}}
 
 
-def raw_output(tokenizer, question, z, content=VALID_GRAPH, *, eos=True, thinking=True):
-    text = ("Design reasoning</think>\n\n" if thinking else "Still reasoning") + content
-    if eos:
-        text += tokenizer.eos_token
-    ids = tokenizer.encode(text, add_special_tokens=False)
-    inputs = tokenizer.apply_chat_template(policy_messages(question, z), tokenize=True, return_dict=False,
-        add_generation_prompt=True, enable_thinking=True)
-    close = tokenizer.convert_tokens_to_ids("</think>")
-    boundary = ids.index(close) + 1 if close in ids else len(ids)
-    return {"text": text, "token_ids": ids, "input_ids": inputs, "input_tokens": len(inputs),
-        "output_tokens": len(ids), "reasoning_tokens": boundary, "content_tokens": len(ids) - boundary,
-        "eos_token": tokenizer.eos_token, "eos_token_id": tokenizer.eos_token_id, "reached_eos": eos,
-        "finish_reason": "eos" if eos else "length", "seconds": 1.0, "tokens_per_second": len(ids),
-        "peak_allocated_bytes": 1024}
 
 
-@pytest.fixture
-def environment(monkeypatch, tokenizer):
-    monkeypatch.setenv("OPENAI_API_KEY", "test")
-    monkeypatch.setattr(evaluation, "prepare_evaluation", lambda config, *args: (snapshot(config, tokenizer), tokenizer))
-    calls = []
-    loaded = []
-
-    class Generator:
-        def __init__(self, path, device, config, reference_tokenizer):
-            self.path = path
-            loaded.append(path)
-
-        def generate(self, question, z, seed):
-            calls.append((self.path, question, z, seed))
-            return raw_output(tokenizer, question, z)
-
-        def close(self):
-            pass
-
-    return Generator, calls, loaded
 
 
-def run(config, environment, handler=reply, **kwargs):
-    return asyncio.run(evaluation.run_evaluation(config, Path("source"), Path("training"), Path("absent.env"),
-        "eval-test", "cuda:0", generator_factory=environment[0], transport=httpx.MockTransport(handler), **kwargs))
 
 
-def path(config):
-    return Path(config.artifacts_dir) / "runs/eval-test"
 
 
 def test_candidate_matrix_split_and_seed_pairing(tmp_path, tokenizer):
-    config = load_config(ROOT / "config/prototype.json")
+    config = load_config(ROOT / "configs/prototype.json")
     plan = snapshot(config, tokenizer)["candidates"]
     assert len(plan) == 38
     assert sum(c["split"] == "eval" for c in plan) == 36
@@ -126,7 +69,7 @@ def test_candidate_matrix_split_and_seed_pairing(tmp_path, tokenizer):
 
 
 def test_pilot_plans_all_fifty_holdout_tasks():
-    config = load_config(ROOT / "config/gsm8k-pilot-sft.json")
+    config = load_config(ROOT / "configs/gsm8k-pilot-sft.json")
     source = [SOURCE[index % len(SOURCE)] for index in range(7500)]
     manifest = build_manifest(source, BenchmarkConfig.model_validate(config.benchmark), config.seed)
     smoke = {"task_id": manifest["tasks"][0]["task_id"], "z": 1.0}
@@ -374,11 +317,6 @@ def test_infrastructure_failures_use_bounded_repeats(tmp_path, environment):
     assert not report["policy_executor_evidence"]
 
 
-def recovery_module():
-    spec = importlib.util.spec_from_file_location("resume_evaluation", ROOT / "scripts/resume_evaluation.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 @pytest.mark.parametrize("initial_disconnects", [0, 2])
@@ -399,7 +337,7 @@ def test_connection_recovery_preserves_history_and_budgets(tmp_path, environment
     assert status == 1 and report["halt_reason"] == "consecutive_request_failures"
     before = EvaluationView(path(config))
     generation_count = len(environment[1])
-    module = recovery_module()
+    module = recovery
 
     def failed_probe(config, **kwargs):
         raise httpx.ConnectError("still unavailable")
@@ -432,7 +370,7 @@ def test_connection_recovery_rejects_http_errors(tmp_path, environment, http_sta
     assert status == 1 and report["halt_reason"]
     before = EvaluationView(path(config))
     with pytest.raises(StoreConflict):
-        recovery_module().recover_connections(path(config), config, before.archive["config"],
+        recovery.recover_connections(path(config), config, before.archive["config"],
             probe=lambda config, **kwargs: pytest.fail("Ineligible recovery must not probe the service"))
     after = EvaluationView(path(config))
     assert after.tables["run"] == before.tables["run"]

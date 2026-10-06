@@ -10,7 +10,7 @@ from jsonschema import Draft202012Validator
 from ocop.graph import VERSION, contract_hash, load_contract, replay, trajectory_schema
 
 
-EXAMPLES = Path(__file__).resolve().parents[1] / "examples" / "graph"
+EXAMPLES = Path(__file__).resolve().parents[2] / "examples" / "graph"
 
 
 def step(kind, **fields):

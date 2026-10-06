@@ -13,12 +13,12 @@ from ocop.runtime.llm import RequestRunner
 from ocop.runtime.storage import RunStore, StoreConflict
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 QUESTION = "Original problem"
 
 
 def config():
-    value = load_config(ROOT / "config/prototype.json")
+    value = load_config(ROOT / "configs/prototype.json")
     value.requests.retry_backoff_seconds = 0.0
     return value
 

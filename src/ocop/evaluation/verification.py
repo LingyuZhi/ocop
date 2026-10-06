@@ -1,4 +1,3 @@
-import argparse
 import json
 import statistics
 import tempfile
@@ -125,7 +124,7 @@ def verify(path, baseline=None):
 
 
 def verify_fixed_graph(path):
-    from fixed_graph_baseline import ReadStore, Settings, prepare, report
+    from ocop.evaluation.baseline import ReadStore, Settings, prepare, report
     from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
     with FileLock(path / "writer.lock", timeout=0):
@@ -173,22 +172,3 @@ def verify_fixed_graph(path):
             "request_count": result["request_count"], "attempt_count": result["attempt_count"],
             "usage": {k: v for k, v in result["usage"].items() if k not in {"request_ids", "attempt_ids"}},
             "source_file_hashes": hashes}
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Read-only final verification of policy evaluation or fixed graph baseline")
-    parser.add_argument("path", type=Path)
-    parser.add_argument("--baseline", type=Path)
-    parser.add_argument("--output", type=Path, required=True)
-    args = parser.parse_args()
-    if args.output.resolve().is_relative_to(args.path.resolve()):
-        parser.error("Verification output must be outside the evaluation run")
-    report = verify(args.path, args.baseline)
-    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"passed": report["passed"], "checks": report["checks"],
-                      "last_candidate_finished_at": report["last_candidate_finished_at"]}, indent=2))
-    raise SystemExit(0 if report["passed"] else 1)
-
-
-if __name__ == "__main__":
-    main()

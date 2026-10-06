@@ -1,4 +1,3 @@
-import argparse
 import hashlib
 import json
 from collections import Counter, defaultdict
@@ -73,7 +72,7 @@ def inspect_run(path):
     generation_inputs = defaultdict(list)
     for row in by_kind["generation"].values():
         candidate = records[links[row["id"]]["candidate"]]["payload"]
-        if candidate["model"] == "last_checkpoint" and candidate["split"] == "eval":
+        if candidate["model"] == "last_checkpoint" and candidate["split"] in {"eval", "holdout"}:
             raw = row["payload"]
             generation_inputs[candidate["task_id"]].append({"z": candidate["z"], "seed": candidate["seed"],
                 "input_ids": raw["input_ids"], "raw_blob": row["payload_blob"],
@@ -96,39 +95,26 @@ def inspect_run(path):
         "system_fingerprints": dict(Counter(node.get("system_fingerprint") for node in outcomes))}
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--runs", type=Path, nargs="+", required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--tasks", nargs="+", default=["217", "4597", "4139"])
-    args = parser.parse_args()
-    reports = [inspect_run(path) for path in args.runs]
-    args.output.mkdir(parents=True, exist_ok=True)
-    (args.output / "evidence.json").write_text(json.dumps(reports, indent=2, ensure_ascii=False) + "\n")
-    audit = [{key: value for key, value in report.items() if key != "executions"} for report in reports]
-    (args.output / "generation-config-audit.json").write_text(json.dumps(audit, indent=2, ensure_ascii=False) + "\n")
-    for task in args.tasks:
+def diagnose_policy(runs, output_path, tasks=()):
+    reports = [inspect_run(path) for path in runs]
+    output_path.mkdir(parents=True, exist_ok=True)
+    (output_path / 'evidence.json').write_text(json.dumps(reports, indent=2, ensure_ascii=False) + '\n')
+    audit = [{key: value for key, value in report.items() if key != 'executions'} for report in reports]
+    (output_path / 'generation-config-audit.json').write_text(json.dumps(audit, indent=2, ensure_ascii=False) + '\n')
+    for task in tasks:
         for report in reports:
             lines = []
             excerpts = []
-            for item in report["executions"]:
-                if item["task_id"].split("-")[-1] != task:
+            for item in report['executions']:
+                if item['task_id'] != task and item['task_id'].split('-')[-1] != task:
                     continue
-                lines.extend([f"EXECUTION {item['execution_id']} REPEAT {item['repeat_id']}",
-                    f"CANDIDATE {item['candidate']}", f"QUESTION {item['question']}",
-                    f"REFERENCE {item['reference']}", f"GRAPH {item['graph']}",
-                    f"STATUS {item['status']} SCORE {item['score']}"])
-                excerpts.extend([f"EXECUTION {item['execution_id']} REPEAT {item['repeat_id']}",
-                    f"CANDIDATE {item['candidate']}", f"STATUS {item['status']} SCORE {item['score']}"])
-                for node, outcome in sorted(item["nodes"].items()):
-                    lines.extend([f"NODE {node} STATUS {outcome['status']}", outcome.get("content", ""), ""])
-                    content = outcome.get("content", "")
-                    excerpts.extend([f"NODE {node}", content if node == "worker_2" else content[-600:], ""])
+                lines.extend([f"EXECUTION {item['execution_id']} REPEAT {item['repeat_id']}", f"CANDIDATE {item['candidate']}", f"QUESTION {item['question']}", f"REFERENCE {item['reference']}", f"GRAPH {item['graph']}", f"STATUS {item['status']} SCORE {item['score']}"])
+                excerpts.extend([f"EXECUTION {item['execution_id']} REPEAT {item['repeat_id']}", f"CANDIDATE {item['candidate']}", f"STATUS {item['status']} SCORE {item['score']}"])
+                for node, outcome in sorted(item['nodes'].items()):
+                    lines.extend([f"NODE {node} STATUS {outcome['status']}", outcome.get('content', ''), ''])
+                    content = outcome.get('content', '')
+                    excerpts.extend([f'NODE {node}', content if node == 'worker_2' else content[-600:], ''])
             if lines:
-                (args.output / f"{report['run']}-{task}.txt").write_text("\n".join(lines))
-                (args.output / f"{report['run']}-{task}-excerpts.txt").write_text("\n".join(excerpts))
-    print(json.dumps([{k: report[k] for k in ("run", "checks")} for report in reports], indent=2))
-
-
-if __name__ == "__main__":
-    main()
+                (output_path / f"{report['run']}-{task}.txt").write_text('\n'.join(lines))
+                (output_path / f"{report['run']}-{task}-excerpts.txt").write_text('\n'.join(excerpts))
+    return [{k: report[k] for k in ('run', 'checks')} for report in reports]

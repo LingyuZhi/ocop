@@ -7,7 +7,7 @@ import pytest
 from ocop.runtime.llm import RequestRunner
 from ocop.runtime.storage import RunHalted, RunStore
 from ocop.runtime.usage import CostBudget, CostBudgetGuard, cost_budget_summary
-from test_llm import LIMITS, MESSAGES, MODEL, response
+from tests.support import LIMITS, MESSAGES, MODEL, response
 
 
 def budget(maximum=0.01):

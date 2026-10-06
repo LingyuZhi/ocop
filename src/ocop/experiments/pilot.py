@@ -1,4 +1,3 @@
-import argparse
 import json
 import subprocess
 import sys
@@ -85,65 +84,44 @@ def run_stage(args, name, command):
         subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, check=True)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run verified raw SFT and frozen-task policy evaluation")
-    parser.add_argument("--config", type=Path, default=Path("config/gsm8k-pilot-sft.json"))
-    parser.add_argument("--source", type=Path, default=Path("artifacts/runs/gsm8k-20260921-expansion-collection"))
-    parser.add_argument("--data", type=Path, default=Path("artifacts/sft/gsm8k-20261001-pilot-raw"))
-    parser.add_argument("--output", type=Path, default=Path("artifacts/sft/gsm8k-20261001-pilot-full"))
-    parser.add_argument("--experiment-dir", type=Path, default=Path("artifacts/experiments/gsm8k-20261001-pilot"))
-    parser.add_argument("--run-id", default="gsm8k-20261001-pilot-eval")
-    parser.add_argument("--gpu-wait-hours", type=float, default=24)
-    parser.add_argument("--preflight-only", action="store_true")
-    args = parser.parse_args()
-    if not 0 < args.gpu_wait_hours < float("inf"):
-        parser.error("GPU wait hours must be positive and finite")
+def run_pilot(args):
+    if not 0 < args.gpu_wait_hours < float('inf'):
+        raise ValueError('GPU wait hours must be positive and finite')
     args.experiment_dir.mkdir(parents=True, exist_ok=True)
-    with FileLock(args.experiment_dir / "pipeline.lock", timeout=0):
+    with FileLock(args.experiment_dir / 'pipeline.lock', timeout=0):
         try:
             checked = preflight(args)
-            frozen = args.experiment_dir / "preflight.json"
+            frozen = args.experiment_dir / 'preflight.json'
             if frozen.exists() and digest(json.loads(frozen.read_text())) != digest(checked):
-                raise ValueError("Pilot preflight differs from its frozen inputs")
+                raise ValueError('Pilot preflight differs from its frozen inputs')
             write_json(frozen, checked)
             runtime = load_config(args.config).model_dump()
-            if digest(runtime) != checked["config_hash"]:
-                raise ValueError("Pilot configuration changed during preflight")
-            args.config = args.experiment_dir / "config.json"
-            if args.config.exists() and digest(json.loads(args.config.read_text())) != checked["config_hash"]:
-                raise ValueError("Pilot configuration differs from its frozen snapshot")
+            if digest(runtime) != checked['config_hash']:
+                raise ValueError('Pilot configuration changed during preflight')
+            args.config = args.experiment_dir / 'config.json'
+            if args.config.exists() and digest(json.loads(args.config.read_text())) != checked['config_hash']:
+                raise ValueError('Pilot configuration differs from its frozen snapshot')
             write_json(args.config, runtime)
-            status(args, "preflight_passed", training_samples=checked["training_samples"],
-                   training_steps=checked["training_steps"], evaluation_candidates=checked["evaluation_candidates"])
+            status(args, 'preflight_passed', training_samples=checked['training_samples'], training_steps=checked['training_steps'], evaluation_candidates=checked['evaluation_candidates'])
             if args.preflight_only:
-                return
-            verification = args.experiment_dir / "sft-verification"
-            common = [sys.executable, "-m", "ocop"]
-            device = wait_for_gpu(args, "verify_sft", 23)
-            run_stage(args, "verify_sft", common + ["verify-sft", "--config", str(args.config),
-                "--data", str(args.data), "--output", str(verification), "--device", device])
-            verified = json.loads((verification / "verification.json").read_text())
-            if not verified["passed"] or verified["data_hash"] != checked["data_hash"]:
-                raise ValueError("SFT update and reload verification failed")
-            device = wait_for_gpu(args, "train", 23)
-            run_stage(args, "train", common + ["train", "--config", str(args.config), "--data", str(args.data),
-                "--output", str(args.output), "--device", device])
-            run_stage(args, "verify_training", [sys.executable, "scripts/verify_training.py", str(args.output),
-                "--output", str(args.experiment_dir / "training-verification.json")])
-            device = wait_for_gpu(args, "evaluate", 12)
-            run_stage(args, "evaluate", common + ["evaluate", "--config", str(args.config),
-                "--source", str(args.source), "--training-run", str(args.output), "--run-id", args.run_id,
-                "--device", device])
-            evaluation = Path(load_config(args.config).artifacts_dir) / "runs" / args.run_id
-            run_stage(args, "verify_evaluation", [sys.executable, "scripts/verify_evaluation.py", str(evaluation),
-                "--output", str(args.experiment_dir / "evaluation-verification.json")])
-            status(args, "completed", training_run=str(args.output), evaluation_run=str(evaluation))
+                return {'path': str(args.experiment_dir), 'stage': 'preflight_passed'}
+            verification = args.experiment_dir / 'sft-verification'
+            common = [sys.executable, '-m', 'ocop']
+            device = wait_for_gpu(args, 'verify_sft', 23)
+            run_stage(args, 'verify_sft', common + ['verify-sft', '--config', str(args.config), '--data', str(args.data), '--output', str(verification), '--device', device])
+            verified = json.loads((verification / 'verification.json').read_text())
+            if not verified['passed'] or verified['data_hash'] != checked['data_hash']:
+                raise ValueError('SFT update and reload verification failed')
+            device = wait_for_gpu(args, 'train', 23)
+            run_stage(args, 'train', common + ['train', '--config', str(args.config), '--data', str(args.data), '--output', str(args.output), '--device', device])
+            run_stage(args, 'verify_training', common + ['verify', 'training', str(args.output), '--output', str(args.experiment_dir / 'training-verification.json')])
+            device = wait_for_gpu(args, 'evaluate', 12)
+            run_stage(args, 'evaluate', common + ['evaluate', '--config', str(args.config), '--source', str(args.source), '--training-run', str(args.output), '--run-id', args.run_id, '--device', device])
+            evaluation = Path(load_config(args.config).artifacts_dir) / 'runs' / args.run_id
+            run_stage(args, 'verify_evaluation', common + ['verify', 'evaluation', str(evaluation), '--output', str(args.experiment_dir / 'evaluation-verification.json')])
+            status(args, 'completed', training_run=str(args.output), evaluation_run=str(evaluation))
         except (OSError, ValueError, subprocess.CalledProcessError) as exc:
-            previous = json.loads((args.experiment_dir / "pipeline-status.json").read_text()) if (
-                args.experiment_dir / "pipeline-status.json").exists() else {}
-            status(args, "failed", failed_stage=previous.get("stage"), error_type=type(exc).__name__, error=str(exc))
+            previous = json.loads((args.experiment_dir / 'pipeline-status.json').read_text()) if (args.experiment_dir / 'pipeline-status.json').exists() else {}
+            status(args, 'failed', failed_stage=previous.get('stage'), error_type=type(exc).__name__, error=str(exc))
             raise
-
-
-if __name__ == "__main__":
-    main()
+    return {'path': str(args.experiment_dir), 'stage': 'completed'}

@@ -15,14 +15,14 @@ import ocop.training.engine as training
 from ocop.cli import main
 from ocop.runtime.config import RuntimeConfig, load_config
 from ocop.runtime.storage import digest
-from test_sft import tiny_qwen
+from tests.support import tiny_qwen
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def producer_inputs():
-    config = load_config(ROOT / "config/prototype.json")
+    config = load_config(ROOT / "configs/prototype.json")
     manifest = {"hash": "data", "model": {"path": "model", "files": {}}}
     schedule = [{"step": 1}]
     archived = training.run_identity(config, manifest, schedule)
@@ -95,7 +95,7 @@ def samples():
 
 
 def settings():
-    result = training.training_settings(load_config(ROOT / "config/prototype.json"))
+    result = training.training_settings(load_config(ROOT / "configs/prototype.json"))
     return {**result, "epochs": 3, "checkpoint_every_steps": 1, "learning_rate": 0.01}
 
 
@@ -261,7 +261,7 @@ def test_qwen_checkpoint_reloads_weights_logits_and_optimizer(tmp_path):
 
 
 def test_resume_rejects_older_published_checkpoint(tmp_path, monkeypatch):
-    config = load_config(ROOT / "config/prototype.json")
+    config = load_config(ROOT / "configs/prototype.json")
     data = samples()
     schedule = training.batch_schedule(data, training.training_settings(config))
     identity = {"data": "fixed"}
@@ -278,7 +278,7 @@ def test_resume_rejects_older_published_checkpoint(tmp_path, monkeypatch):
 
 
 def test_training_output_and_concurrent_writer_are_rejected(tmp_path):
-    config = ROOT / "config/prototype.json"
+    config = ROOT / "configs/prototype.json"
     with pytest.raises(FileExistsError):
         training.train(config, tmp_path / "unused", tmp_path, "cuda:0")
     output = tmp_path / "run"
@@ -289,7 +289,7 @@ def test_training_output_and_concurrent_writer_are_rejected(tmp_path):
 
 
 def test_resume_uses_archived_config_and_rejects_override(tmp_path, monkeypatch):
-    original = load_config(ROOT / "config/prototype.json")
+    original = load_config(ROOT / "configs/prototype.json")
     (tmp_path / "config.json").write_text(original.model_dump_json())
     changed = original.model_copy(deep=True)
     changed.training["epochs"] = 4
@@ -304,7 +304,7 @@ def test_resume_uses_archived_config_and_rejects_override(tmp_path, monkeypatch)
 
 
 def test_old_configuration_serialization_preserves_identity():
-    config = load_config(ROOT / "config/prototype.json").model_dump()
+    config = load_config(ROOT / "configs/prototype.json").model_dump()
     config.pop("training_runtime")
     parsed = RuntimeConfig.model_validate(config)
     assert parsed.training_runtime is None
@@ -313,7 +313,7 @@ def test_old_configuration_serialization_preserves_identity():
 
 
 def test_training_config_is_explicit_and_validates_batch_size():
-    config = load_config(ROOT / "config/prototype.json")
+    config = load_config(ROOT / "configs/prototype.json")
     assert training.training_settings(config)["checkpoint_every_steps"] == 6
     assert len(training.batch_schedule([{"candidate_id": str(i)} for i in range(72)],
                                      training.training_settings(config))) == 54

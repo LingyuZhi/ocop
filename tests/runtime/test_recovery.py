@@ -10,7 +10,7 @@ from ocop.collection.expansion import ExpansionConfig, development_graphs, prepa
 from ocop.runtime.llm import recover_inflight_budget
 from ocop.runtime.recovery import AutoRecoveryConfig, automatic_recovery, apply_recovery, recovery_evidence
 from ocop.runtime.storage import ReadStore, RunStore, StoreConflict
-from test_collection import collect, local_environment, reply, runtime
+from tests.support import collect, local_environment, reply, collection_runtime as runtime
 
 
 def halted_collection(tmp_path, response=None):

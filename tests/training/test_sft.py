@@ -1,3 +1,4 @@
+from tests.support import tiny_qwen
 import copy
 import json
 from pathlib import Path
@@ -13,10 +14,10 @@ from ocop.runtime.config import load_config
 from ocop.training.updates import collate, select_samples, token_losses, validate_checkpoint, verification_settings
 from ocop.runtime.storage import digest
 from ocop.training.data import encode_sample, load_prepared, prepare_sft, source_samples
-from test_collection import collect, local_environment, reply, runtime
+from tests.support import collect, local_environment, reply, collection_runtime as runtime
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 MODEL = Path("/data1/zhilingyu/models/Qwen3.5-2B")
 
 
@@ -183,7 +184,7 @@ def test_checkpoint_rejects_tampered_state(tmp_path):
 
 
 def test_verification_configuration_is_explicit():
-    config = load_config(ROOT / "config/prototype.json")
+    config = load_config(ROOT / "configs/prototype.json")
     settings = verification_settings(config)
     assert settings["optimizer_steps"] == 2 and settings["resume_steps"] == 1
     assert settings["gradient_accumulation"] * settings["microbatch_size"] == 4
@@ -192,17 +193,6 @@ def test_verification_configuration_is_explicit():
         verification_settings(config)
 
 
-def tiny_qwen():
-    config = Qwen3_5Config(text_config={"vocab_size": 19, "hidden_size": 16, "intermediate_size": 32,
-        "num_hidden_layers": 2, "num_attention_heads": 2, "num_key_value_heads": 1, "head_dim": 8,
-        "layer_types": ["linear_attention", "full_attention"], "linear_conv_kernel_dim": 4,
-        "linear_key_head_dim": 8, "linear_value_head_dim": 8, "linear_num_key_heads": 2,
-        "linear_num_value_heads": 2, "rope_parameters": {"rope_type": "default", "rope_theta": 10000,
-            "partial_rotary_factor": 1.0, "mrope_section": [1, 1, 2]}},
-        vision_config={"depth": 1, "hidden_size": 16, "intermediate_size": 32, "num_heads": 2, "out_hidden_size": 16})
-    network = AutoModelForImageTextToText.from_config(config, attn_implementation="sdpa")
-    network.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
-    return network
 
 
 def test_qwen_native_loss_matches_training_loss_with_checkpointing():
