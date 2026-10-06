@@ -6,14 +6,14 @@ from dataclasses import asdict
 from pathlib import Path
 
 from ocop import __version__
-from ocop.config import RuntimeConfig
+from ocop.runtime.config import RuntimeConfig
 from ocop.graph import load_contract, replay, trajectory_schema
-from ocop.llm import RequestRunner, load_credentials
-from ocop.storage import RunStore
+from ocop.runtime.llm import RequestRunner, load_credentials
+from ocop.runtime.storage import RunStore
 
 
 def provenance() -> dict:
-    source = Path(__file__).parent
+    source = Path(__file__).resolve().parents[1]
     hasher = hashlib.sha256()
     for path in sorted(source.rglob("*.py")):
         hasher.update(str(path.relative_to(source)).encode())

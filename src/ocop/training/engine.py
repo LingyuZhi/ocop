@@ -18,11 +18,12 @@ from tensorboard.backend.event_processing.event_accumulator import EventAccumula
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModelForImageTextToText, AutoTokenizer, GenerationConfig
 
-from ocop.collection import write_json
-from ocop.config import load_config
+from ocop.runtime.storage import write_json
+from ocop.runtime.config import load_config
 from ocop.graph import replay
-from ocop.training import optimizer_dtypes, parameter_hashes, probe, update
-from ocop.trajectories import digest, encode_sample, file_hash, load_prepared, model_identity, policy_messages
+from ocop.training.updates import optimizer_dtypes, parameter_hashes, probe, update
+from ocop.runtime.storage import digest, file_hash
+from ocop.training.data import encode_sample, load_prepared, model_identity, policy_messages
 
 
 def training_settings(config):
@@ -174,8 +175,8 @@ def run_identity(config, manifest, schedule):
         "schedule_hash": digest(schedule), "model": manifest["model"],
         "versions": {name: importlib.metadata.version(name) for name in
                      ("torch", "transformers", "tokenizers", "tensorboard", "numpy")},
-        "implementation_hashes": {name: file_hash(Path(__file__).with_name(name)) for name in
-                                  ("full_training.py", "training.py", "trajectories.py", "config.py")}}
+        "implementation_hashes": {name: file_hash(Path(__file__).resolve().parents[1] / name) for name in
+                                  ("training/engine.py", "training/updates.py", "training/data.py", "runtime/config.py")}}
 
 
 def verified_producer_identity(config, manifest, schedule, archived):

@@ -13,23 +13,25 @@ from pydantic import Field, model_serializer, model_validator
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoTokenizer
 
-from ocop.benchmark import BenchmarkConfig, validate_manifest
-from ocop.collection import graph_fingerprint, write_json
-from ocop.collection_validation import verify as verify_collection
-from ocop.config import StrictModel, load_config
-from ocop.diagnostics import provenance
-from ocop.evaluation_report import save_report
-from ocop.executor import execute_repeat, executor_config, executor_hash
-from ocop.full_training import audit_inputs, batch_schedule, training_settings, validate_saved_checkpoint, verified_producer_identity
+from ocop.collection.benchmark import BenchmarkConfig, validate_manifest
+from ocop.graph import graph_fingerprint
+from ocop.runtime.storage import write_json
+from ocop.collection.verification import verify as verify_collection
+from ocop.runtime.config import StrictModel, load_config
+from ocop.diagnostics.services import provenance
+from ocop.evaluation.report import save_report
+from ocop.execution.executor import execute_repeat, executor_config, executor_hash
+from ocop.training.engine import audit_inputs, batch_schedule, training_settings, validate_saved_checkpoint, verified_producer_identity
 from ocop.graph import replay
 from ocop.inference.vllm_pool import VllmConfig, VllmPool, inference_environment
-from ocop.labels import aggregate_label
-from ocop.llm import RequestRunner, load_credentials, recover_inflight_budget
-from ocop.policy_generation import TransformersGenerator, candidate_seed, generation_config, parse_generation
-from ocop.scoring import score_answer
-from ocop.storage import RunHalted, RunStore
-from ocop.trajectories import digest, file_hash, model_identity, policy_messages
-from ocop.usage import CostBudget, CostBudgetGuard
+from ocop.execution.labels import aggregate_label
+from ocop.runtime.llm import RequestRunner, load_credentials, recover_inflight_budget
+from ocop.inference.transformers import TransformersGenerator, candidate_seed, generation_config, parse_generation
+from ocop.execution.scoring import score_answer
+from ocop.runtime.storage import RunHalted, RunStore
+from ocop.runtime.storage import digest, file_hash
+from ocop.training.data import model_identity, policy_messages
+from ocop.runtime.usage import CostBudget, CostBudgetGuard
 
 
 class EvaluationConfig(StrictModel):

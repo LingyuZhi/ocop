@@ -12,7 +12,7 @@ from typing import Any
 
 from filelock import FileLock
 
-from ocop.config import canonical_json
+from ocop.runtime.config import canonical_json
 from ocop.graph import contract_hash
 
 
@@ -350,3 +350,18 @@ def export_run(path: Path, output: Path):
         for table in ("run", "records", "links", "requests", "attempts"):
             for row in database.execute(f"SELECT * FROM {table} ORDER BY rowid"):
                 stream.write(json.dumps({"record_version": 1, "table": table, **dict(row)}, ensure_ascii=False) + "\n")
+
+
+def write_json(path: Path, payload: dict):
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def digest(value):
+    return hashlib.sha256(canonical_json(value)).hexdigest()
+
+
+def file_hash(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()

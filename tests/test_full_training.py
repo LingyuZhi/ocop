@@ -11,10 +11,10 @@ from filelock import FileLock, Timeout
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModelForImageTextToText
 
-import ocop.full_training as training
+import ocop.training.engine as training
 from ocop.cli import main
-from ocop.config import RuntimeConfig, load_config
-from ocop.trajectories import digest
+from ocop.runtime.config import RuntimeConfig, load_config
+from ocop.runtime.storage import digest
 from test_sft import tiny_qwen
 
 
@@ -26,7 +26,7 @@ def producer_inputs():
     manifest = {"hash": "data", "model": {"path": "model", "files": {}}}
     schedule = [{"step": 1}]
     archived = training.run_identity(config, manifest, schedule)
-    registry = json.loads((ROOT / "src/ocop/producers.json").read_text())
+    registry = json.loads((ROOT / "src/ocop/training/producers.json").read_text())
     archived["implementation_hashes"] = registry["producers"][0]["implementation_hashes"]
     return config, manifest, schedule, archived
 

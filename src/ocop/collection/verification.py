@@ -3,14 +3,15 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from ocop.benchmark import BenchmarkConfig, validate_manifest
-from ocop.collection import CollectionConfig, graph_fingerprint
-from ocop.config import RuntimeConfig, canonical_json
-from ocop.executor import executor_hash
+from ocop.collection.benchmark import BenchmarkConfig, validate_manifest
+from ocop.collection.pipeline import CollectionConfig
+from ocop.graph import graph_fingerprint
+from ocop.runtime.config import RuntimeConfig, canonical_json
+from ocop.execution.executor import executor_hash
 from ocop.graph import replay
-from ocop.labels import aggregate_label
-from ocop.scoring import normalize_reference, score_answer
-from ocop.storage import read_database
+from ocop.execution.labels import aggregate_label
+from ocop.execution.scoring import normalize_reference, score_answer
+from ocop.runtime.storage import read_database
 
 
 def verify(path: Path, *, allow_pending: bool = False) -> dict:

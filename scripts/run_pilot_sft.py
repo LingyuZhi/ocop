@@ -9,13 +9,13 @@ from pathlib import Path
 import torch
 from filelock import FileLock
 
-from ocop.benchmark import BenchmarkConfig, validate_manifest
-from ocop.collection import write_json
-from ocop.config import load_config
-from ocop.evaluation import EvaluationConfig, candidate_plan
-from ocop.executor import executor_hash
-from ocop.full_training import audit_inputs, batch_schedule, training_settings
-from ocop.trajectories import digest
+from ocop.collection.benchmark import BenchmarkConfig, validate_manifest
+from ocop.runtime.storage import write_json
+from ocop.runtime.config import load_config
+from ocop.evaluation.pipeline import EvaluationConfig, candidate_plan
+from ocop.execution.executor import executor_hash
+from ocop.training.engine import audit_inputs, batch_schedule, training_settings
+from ocop.runtime.storage import digest
 
 
 def preflight(args):

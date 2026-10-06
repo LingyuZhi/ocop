@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
-from ocop.collection_validation import verify
+from ocop.collection.verification import verify
 
 
 def main() -> int:

@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from ocop.scoring import normalize_reference, parse_answer, score_answer
+from ocop.execution.scoring import normalize_reference, parse_answer, score_answer
 
 
 @pytest.mark.parametrize("text", ["#### 5", "reasoning\n#### +5.00\n", "#### 5\r\n", "#### 05.0\n\n"])

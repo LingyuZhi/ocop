@@ -4,13 +4,13 @@ from pathlib import Path
 
 from pydantic import Field
 
-from ocop.config import RuntimeConfig, StrictModel
-from ocop.diagnostics import provenance
-from ocop.executor import execute_repeat, executor_config
+from ocop.runtime.config import RuntimeConfig, StrictModel
+from ocop.diagnostics.services import provenance
+from ocop.execution.executor import execute_repeat, executor_config
 from ocop.graph import replay
-from ocop.llm import RequestRunner, load_credentials
-from ocop.scoring import normalize_reference, score_answer
-from ocop.storage import RunStore
+from ocop.runtime.llm import RequestRunner, load_credentials
+from ocop.execution.scoring import normalize_reference, score_answer
+from ocop.runtime.storage import RunStore
 
 
 class ExecutionTask(StrictModel):

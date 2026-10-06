@@ -16,9 +16,10 @@ from torch.utils.checkpoint import checkpoint
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModelForImageTextToText, AutoTokenizer, GenerationConfig
 
-from ocop.collection import write_json
+from ocop.runtime.storage import write_json
 from ocop.graph import replay
-from ocop.trajectories import digest, encode_sample, file_hash, load_prepared, model_identity, policy_messages
+from ocop.runtime.storage import digest, file_hash
+from ocop.training.data import encode_sample, load_prepared, model_identity, policy_messages
 
 
 def verification_settings(config):

@@ -8,14 +8,14 @@ import httpx
 import pytest
 from transformers import AutoTokenizer
 
-import ocop.evaluation as evaluation
-from ocop.benchmark import BenchmarkConfig, build_manifest
-from ocop.config import load_config
-from ocop.evaluation_report import EvaluationView, audit_metrics, report_evaluation
-from ocop.executor import executor_config, executor_hash
-from ocop.policy_generation import candidate_seed, generation_config, parse_generation
-from ocop.storage import RunStore, StoreConflict
-from ocop.trajectories import policy_messages
+import ocop.evaluation.pipeline as evaluation
+from ocop.collection.benchmark import BenchmarkConfig, build_manifest
+from ocop.runtime.config import load_config
+from ocop.evaluation.report import EvaluationView, audit_metrics, report_evaluation
+from ocop.execution.executor import executor_config, executor_hash
+from ocop.inference.transformers import candidate_seed, generation_config, parse_generation
+from ocop.runtime.storage import RunStore, StoreConflict
+from ocop.training.data import policy_messages
 from test_collection import SOURCE, VALID_GRAPH, reply
 
 
@@ -530,7 +530,7 @@ def test_credit_recovery_preserves_failed_repeats_and_generation(tmp_path, envir
 
 def test_report_command_does_not_modify_database(tmp_path, environment):
     from ocop.cli import main
-    from ocop.storage import export_run
+    from ocop.runtime.storage import export_run
 
     config = runtime(tmp_path)
     run(config, environment, phase="generate")

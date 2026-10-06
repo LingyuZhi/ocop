@@ -9,8 +9,8 @@ from uuid import UUID
 import httpx
 from dotenv import dotenv_values
 
-from ocop.config import ModelConfig, RequestConfig
-from ocop.storage import RunStore, StoreConflict
+from ocop.runtime.config import ModelConfig, RequestConfig
+from ocop.runtime.storage import RunStore, StoreConflict
 
 
 def load_credentials(path: Path, names: set[str]) -> dict[str, str]:

@@ -8,13 +8,14 @@ from pathlib import Path
 
 from filelock import FileLock
 
-from ocop.collection import graph_fingerprint
-from ocop.config import load_config
-from ocop.evaluation import archived_snapshot_matches, prepare_evaluation
-from ocop.evaluation_report import EvaluationView, audit_generation_tokens, audit_metrics, build_report
+from ocop.graph import graph_fingerprint
+from ocop.runtime.config import load_config
+from ocop.evaluation.pipeline import archived_snapshot_matches, prepare_evaluation
+from ocop.evaluation.report import EvaluationView, audit_generation_tokens, audit_metrics, build_report
 from ocop.graph import replay
-from ocop.storage import export_run
-from ocop.trajectories import digest, file_hash, load_prepared
+from ocop.runtime.storage import export_run
+from ocop.runtime.storage import digest, file_hash
+from ocop.training.data import load_prepared
 
 
 def history_checks(before, after):

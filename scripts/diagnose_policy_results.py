@@ -4,10 +4,10 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from ocop.config import canonical_json
-from ocop.executor import finalizer_messages, worker_messages
-from ocop.scoring import normalize_reference, score_answer
-from ocop.storage import read_database
+from ocop.runtime.config import canonical_json
+from ocop.execution.executor import finalizer_messages, worker_messages
+from ocop.execution.scoring import normalize_reference, score_answer
+from ocop.runtime.storage import read_database
 
 
 def inspect_run(path):

@@ -8,7 +8,8 @@ import torch
 from transformers import AutoModelForImageTextToText, AutoTokenizer, GenerationConfig
 
 from ocop.graph import replay
-from ocop.trajectories import digest, policy_messages
+from ocop.runtime.storage import digest
+from ocop.training.data import policy_messages
 
 
 def candidate_seed(seed, task_id, slot):

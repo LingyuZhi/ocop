@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from filelock import Timeout
 
-from ocop.storage import RunStore, StoreConflict
+from ocop.runtime.storage import RunStore, StoreConflict
 
 
 def test_resume_requires_identical_config_and_preserves_manifest(tmp_path):

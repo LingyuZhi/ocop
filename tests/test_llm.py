@@ -6,9 +6,9 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from ocop.config import RequestConfig, load_config
-from ocop.llm import RequestRunner, budget_retry_deadline, load_credentials, normalize_response, recover_inflight_budget
-from ocop.storage import RunStore, StoreConflict
+from ocop.runtime.config import RequestConfig, load_config
+from ocop.runtime.llm import RequestRunner, budget_retry_deadline, load_credentials, normalize_response, recover_inflight_budget
+from ocop.runtime.storage import RunStore, StoreConflict
 
 
 CONFIG = Path(__file__).resolve().parents[1] / "config/prototype.json"
@@ -218,11 +218,11 @@ def test_budget_retry_deadline(header, expected):
 def test_budget_retry_wait_and_attempt_budget_survive_restart(tmp_path, monkeypatch):
     clock = [1000.0]
     waits = []
-    monkeypatch.setattr("ocop.llm.time.time", lambda: clock[0])
+    monkeypatch.setattr("ocop.runtime.llm.time.time", lambda: clock[0])
     async def sleep(delay):
         waits.append(delay)
         clock[0] += delay
-    monkeypatch.setattr("ocop.llm.asyncio.sleep", sleep)
+    monkeypatch.setattr("ocop.runtime.llm.asyncio.sleep", sleep)
     payload = {"error": {"code": 402, "metadata": {
         "reason": "in_flight_budget_exhausted", "limit_source": "openrouter_in_flight_budget"}}}
     calls = []
@@ -305,10 +305,10 @@ def test_deepseek_topup_recovery_refuses_unverified_402(tmp_path, error):
 
 def test_budget_cooldown_applies_to_other_requests(tmp_path, monkeypatch):
     clock = [1000.0]
-    monkeypatch.setattr("ocop.llm.time.time", lambda: clock[0])
+    monkeypatch.setattr("ocop.runtime.llm.time.time", lambda: clock[0])
     async def sleep(delay):
         clock[0] += delay
-    monkeypatch.setattr("ocop.llm.asyncio.sleep", sleep)
+    monkeypatch.setattr("ocop.runtime.llm.asyncio.sleep", sleep)
     calls = []
     def handler(request):
         calls.append(clock[0])

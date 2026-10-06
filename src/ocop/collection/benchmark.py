@@ -6,8 +6,8 @@ from typing import Literal
 
 from pydantic import Field, model_serializer, model_validator
 
-from ocop.config import StrictModel, canonical_json
-from ocop.scoring import normalize_reference
+from ocop.runtime.config import StrictModel, canonical_json
+from ocop.execution.scoring import normalize_reference
 
 
 class BenchmarkConfig(StrictModel):

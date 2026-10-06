@@ -7,12 +7,12 @@ from pathlib import Path
 
 from filelock import FileLock, Timeout
 
-from ocop.collection import write_json
-from ocop.evaluation import prepare_evaluation, run_evaluation
-from ocop.evaluation_report import EvaluationView, build_report
-from ocop.recovery import AutoRecoveryConfig, automatic_recovery
-from ocop.storage import StoreConflict, read_database
-from ocop.trajectories import digest
+from ocop.runtime.storage import write_json
+from ocop.evaluation.pipeline import prepare_evaluation, run_evaluation
+from ocop.evaluation.report import EvaluationView, build_report
+from ocop.runtime.recovery import AutoRecoveryConfig, automatic_recovery
+from ocop.runtime.storage import StoreConflict, read_database
+from ocop.runtime.storage import digest
 
 
 STATE_VERSION = "ocop.evaluation_supervisor.v1"

@@ -9,17 +9,18 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import binomtest
 
-from ocop.collection import graph_fingerprint, write_json
-from ocop.config import RuntimeConfig, canonical_json
-from ocop.diagnostics import provenance
-from ocop.executor import execute_repeat, executor_hash, finalizer_messages, worker_messages
+from ocop.graph import graph_fingerprint
+from ocop.runtime.storage import write_json
+from ocop.runtime.config import RuntimeConfig, canonical_json
+from ocop.diagnostics.services import provenance
+from ocop.execution.executor import execute_repeat, executor_hash, finalizer_messages, worker_messages
 from ocop.graph import replay
-from ocop.labels import aggregate_label
-from ocop.llm import RequestRunner, load_credentials, recover_inflight_budget
-from ocop.scoring import normalize_reference, score_answer
-from ocop.storage import ReadStore, RunHalted, RunStore
-from ocop.trajectories import digest
-from ocop.usage import summarize_usage
+from ocop.execution.labels import aggregate_label
+from ocop.runtime.llm import RequestRunner, load_credentials, recover_inflight_budget
+from ocop.execution.scoring import normalize_reference, score_answer
+from ocop.runtime.storage import ReadStore, RunHalted, RunStore
+from ocop.runtime.storage import digest
+from ocop.runtime.usage import summarize_usage
 
 
 def coverage(view):

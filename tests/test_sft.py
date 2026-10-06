@@ -8,10 +8,11 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoModelForImageTextToText, AutoTokenizer, Qwen3_5Config
 
-import ocop.trajectories as trajectories
-from ocop.config import load_config
-from ocop.training import collate, select_samples, token_losses, validate_checkpoint, verification_settings
-from ocop.trajectories import digest, encode_sample, load_prepared, prepare_sft, source_samples
+import ocop.training.data as trajectories
+from ocop.runtime.config import load_config
+from ocop.training.updates import collate, select_samples, token_losses, validate_checkpoint, verification_settings
+from ocop.runtime.storage import digest
+from ocop.training.data import encode_sample, load_prepared, prepare_sft, source_samples
 from test_collection import collect, local_environment, reply, runtime
 
 

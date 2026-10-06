@@ -7,16 +7,15 @@ from pathlib import Path
 import httpx
 import pytest
 
-from ocop.benchmark import BenchmarkConfig, build_manifest, validate_manifest
-from ocop.collection import run_collection
-from ocop.collection_validation import verify
-from ocop.config import canonical_json
-from ocop.expansion import ExpansionConfig, development_graphs, run_expansion, verify_suite
-from ocop.llm import RequestLimits, RequestRunner
-from ocop.replication import (coverage, holm_adjust, paired_statistics, prepare_snapshot,
-                              replication_report, run_replication, select_pairs)
-from ocop.storage import ReadStore, RunStore, StoreConflict
-from ocop.trajectories import digest
+from ocop.collection.benchmark import BenchmarkConfig, build_manifest, validate_manifest
+from ocop.collection.pipeline import run_collection
+from ocop.collection.verification import verify
+from ocop.runtime.config import canonical_json
+from ocop.collection.expansion import ExpansionConfig, development_graphs, run_expansion, verify_suite
+from ocop.runtime.llm import RequestLimits, RequestRunner
+from ocop.collection.replication import coverage, holm_adjust, paired_statistics, prepare_snapshot, replication_report, run_replication, select_pairs
+from ocop.runtime.storage import ReadStore, RunStore, StoreConflict
+from ocop.runtime.storage import digest
 from test_collection import SOURCE, collect, local_environment, reply, runtime
 from test_evaluation import recovery_module
 

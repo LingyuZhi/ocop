@@ -6,10 +6,10 @@ import httpx
 import pytest
 from filelock import FileLock, Timeout
 
-from ocop.expansion import ExpansionConfig, development_graphs, prepare, supervise_expansion
-from ocop.llm import recover_inflight_budget
-from ocop.recovery import AutoRecoveryConfig, automatic_recovery, apply_recovery, recovery_evidence
-from ocop.storage import ReadStore, RunStore, StoreConflict
+from ocop.collection.expansion import ExpansionConfig, development_graphs, prepare, supervise_expansion
+from ocop.runtime.llm import recover_inflight_budget
+from ocop.runtime.recovery import AutoRecoveryConfig, automatic_recovery, apply_recovery, recovery_evidence
+from ocop.runtime.storage import ReadStore, RunStore, StoreConflict
 from test_collection import collect, local_environment, reply, runtime
 
 

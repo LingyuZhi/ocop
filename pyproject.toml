@@ -36,7 +36,7 @@ dev = ["pytest>=8.3,<10"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"ocop" = ["producers.json"]
+"ocop.training" = ["producers.json"]
 "ocop.graph" = ["contracts/*.json"]
 
 [tool.pytest.ini_options]

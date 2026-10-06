@@ -6,9 +6,9 @@ import sys
 import traceback
 from pathlib import Path
 
-from ocop.config import load_config
-from ocop.evaluation_supervision import supervise_evaluation
-from ocop.recovery import AutoRecoveryConfig
+from ocop.runtime.config import load_config
+from ocop.evaluation.supervision import supervise_evaluation
+from ocop.runtime.recovery import AutoRecoveryConfig
 
 
 def main(argv=None):

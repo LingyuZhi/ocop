@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import ocop.evaluation_supervision as supervision
+import ocop.evaluation.supervision as supervision
 
 
 class Runtime:

@@ -6,23 +6,19 @@ from pathlib import Path
 
 from transformers import AutoTokenizer
 
-from ocop.collection import proposal_template, write_json
-from ocop.collection_validation import verify
-from ocop.config import canonical_json
+from ocop.collection.pipeline import proposal_template
+from ocop.runtime.storage import write_json
+from ocop.collection.verification import verify
+from ocop.runtime.config import canonical_json
 from ocop.graph import contract_hash, replay
-from ocop.storage import read_database
+from ocop.runtime.storage import digest, file_hash, read_database
 
 
 SFT_VERSION = "ocop.raw_sft.v1"
 
 
-def digest(value):
-    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
-def file_hash(path):
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def model_identity(path):

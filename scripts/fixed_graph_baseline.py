@@ -12,19 +12,20 @@ from pydantic import Field, model_validator
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 from torch.utils.tensorboard import SummaryWriter
 
-from ocop.benchmark import BenchmarkConfig, validate_manifest
-from ocop.collection import graph_fingerprint, write_json
-from ocop.config import RuntimeConfig, StrictModel, canonical_json
-from ocop.diagnostics import provenance
-from ocop.evaluation_report import EvaluationView, build_report
-from ocop.executor import execute_repeat, executor_hash
+from ocop.collection.benchmark import BenchmarkConfig, validate_manifest
+from ocop.graph import graph_fingerprint
+from ocop.runtime.storage import write_json
+from ocop.runtime.config import RuntimeConfig, StrictModel, canonical_json
+from ocop.diagnostics.services import provenance
+from ocop.evaluation.report import EvaluationView, build_report
+from ocop.execution.executor import execute_repeat, executor_hash
 from ocop.graph import replay
-from ocop.labels import aggregate_label
-from ocop.llm import RequestRunner, load_credentials, recover_inflight_budget
-from ocop.scoring import normalize_reference, score_answer
-from ocop.storage import RunHalted, RunStore, export_run, read_database
-from ocop.trajectories import digest, file_hash
-from ocop.usage import summarize_usage
+from ocop.execution.labels import aggregate_label
+from ocop.runtime.llm import RequestRunner, load_credentials, recover_inflight_budget
+from ocop.execution.scoring import normalize_reference, score_answer
+from ocop.runtime.storage import RunHalted, RunStore, export_run, read_database
+from ocop.runtime.storage import digest, file_hash
+from ocop.runtime.usage import summarize_usage
 
 
 class Settings(StrictModel):
@@ -336,8 +337,8 @@ def main():
     parser.add_argument("--recovery-config", type=Path, default=Path("config/auto-recovery.json"))
     args = parser.parse_args()
     if args.experiment_config or args.verify_experiment:
-        from ocop.expansion import ExpansionConfig, supervise_expansion, verify_suite
-        from ocop.recovery import AutoRecoveryConfig
+        from ocop.collection.expansion import ExpansionConfig, supervise_expansion, verify_suite
+        from ocop.runtime.recovery import AutoRecoveryConfig
 
         if args.verify_experiment:
             with FileLock(args.verify_experiment / "writer.lock", timeout=0):

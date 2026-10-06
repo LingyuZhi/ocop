@@ -8,9 +8,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-import ocop.evaluation as evaluation
-from ocop.diagnostics import provenance
-from ocop.storage import RunStore, StoreConflict
+import ocop.evaluation.pipeline as evaluation
+from ocop.diagnostics.services import provenance
+from ocop.runtime.storage import RunStore, StoreConflict
 from test_collection import reply
 from test_evaluation import environment, path, run, runtime, snapshot, tokenizer
 

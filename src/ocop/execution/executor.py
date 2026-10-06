@@ -4,13 +4,13 @@ from dataclasses import asdict
 
 import networkx as nx
 
-from ocop.config import RuntimeConfig, canonical_json
+from ocop.runtime.config import RuntimeConfig, canonical_json
 from ocop.graph import contract_hash, load_contract, replay
 from ocop.graph.replay import ReplayResult
-from ocop.llm import RequestRunner
-from ocop.scoring import SCORER_VERSION
-from ocop.storage import RunHalted, RunStore
-from ocop.usage import summarize_usage
+from ocop.runtime.llm import RequestRunner
+from ocop.execution.scoring import SCORER_VERSION
+from ocop.runtime.storage import RunHalted, RunStore
+from ocop.runtime.usage import summarize_usage
 
 
 EXECUTOR_VERSION = "ocop.executor.v1"

@@ -3,9 +3,9 @@ import asyncio
 import json
 from pathlib import Path
 
-from ocop.config import load_config
-from ocop.execution import run_execution
-from ocop.storage import export_run, inspect_run
+from ocop.runtime.config import load_config
+from ocop.execution.single import run_execution
+from ocop.runtime.storage import export_run, inspect_run
 
 
 async def verify(args) -> int:

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from ocop.cli import main
-from ocop.storage import RunStore
+from ocop.runtime.storage import RunStore
 
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples" / "graph"
@@ -64,8 +64,8 @@ def test_read_only_run_inspection_and_export(tmp_path, capsys):
 def test_execute_cli_scores_without_retry_and_resumes(tmp_path, monkeypatch, capsys, answer, reason):
     import httpx
 
-    import ocop.execution as execution
-    from ocop.llm import RequestRunner
+    import ocop.execution.single as execution
+    from ocop.runtime.llm import RequestRunner
 
     root = EXAMPLES.parents[1]
     config = json.loads((root / "config/prototype.json").read_text())

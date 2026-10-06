@@ -6,11 +6,11 @@ from pathlib import Path
 import httpx
 import pytest
 
-from ocop.config import load_config
-from ocop.executor import execute_repeat, executor_hash, finalizer_messages, worker_messages
+from ocop.runtime.config import load_config
+from ocop.execution.executor import execute_repeat, executor_hash, finalizer_messages, worker_messages
 from ocop.graph import replay
-from ocop.llm import RequestRunner
-from ocop.storage import RunStore, StoreConflict
+from ocop.runtime.llm import RequestRunner
+from ocop.runtime.storage import RunStore, StoreConflict
 
 
 ROOT = Path(__file__).resolve().parents[1]

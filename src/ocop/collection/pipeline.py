@@ -11,16 +11,16 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from ocop.benchmark import BenchmarkConfig, build_manifest, load_source, validate_manifest
-from ocop.config import RuntimeConfig, StrictModel, canonical_json
-from ocop.diagnostics import provenance
-from ocop.executor import execute_repeat, executor_config
-from ocop.graph import load_contract, replay, trajectory_schema
-from ocop.labels import aggregate_label
-from ocop.llm import RequestRunner, load_credentials, recover_inflight_budget
-from ocop.scoring import score_answer
-from ocop.storage import RunHalted, RunStore
-from ocop.usage import summarize_usage
+from ocop.collection.benchmark import BenchmarkConfig, build_manifest, load_source, validate_manifest
+from ocop.runtime.config import RuntimeConfig, StrictModel, canonical_json
+from ocop.diagnostics.services import provenance
+from ocop.execution.executor import execute_repeat, executor_config
+from ocop.graph import graph_fingerprint, load_contract, replay, trajectory_schema
+from ocop.execution.labels import aggregate_label
+from ocop.runtime.llm import RequestRunner, load_credentials, recover_inflight_budget
+from ocop.execution.scoring import score_answer
+from ocop.runtime.storage import RunHalted, RunStore, write_json
+from ocop.runtime.usage import summarize_usage
 
 
 COLLECTION_VERSION = "ocop.collection.v1"
@@ -52,16 +52,8 @@ def proposal_messages(question: str) -> list[dict[str, str]]:
     return [{"role": "system", "content": proposal_template()["system"]}, {"role": "user", "content": question}]
 
 
-def graph_fingerprint(graph) -> str:
-    payload = {"workers": sorted((worker.worker_id, worker.role) for worker in graph.workers),
-               "edges": sorted(graph.edges)}
-    return hashlib.sha256(canonical_json(payload)).hexdigest()
 
 
-def write_json(path: Path, payload: dict):
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
-    os.replace(temporary, path)
 
 
 async def collect_candidate(store: RunStore, runner: RequestRunner, runtime: RuntimeConfig,

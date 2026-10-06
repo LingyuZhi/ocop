@@ -9,16 +9,17 @@ from pydantic import Field, model_validator
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 from torch.utils.tensorboard import SummaryWriter
 
-from ocop.benchmark import BenchmarkConfig, validate_manifest
-from ocop.collection import collection_report, run_collection, write_json
-from ocop.collection_validation import verify as verify_collection
-from ocop.config import RuntimeConfig, StrictModel
-from ocop.executor import executor_config, executor_hash
-from ocop.llm import RequestLimits
-from ocop.replication import coverage, prepare_snapshot, replication_report, run_replication, select_pairs
-from ocop.recovery import AutoRecoveryConfig, automatic_recovery
-from ocop.storage import ReadStore, StoreConflict, read_database
-from ocop.trajectories import digest, file_hash
+from ocop.collection.benchmark import BenchmarkConfig, validate_manifest
+from ocop.collection.pipeline import collection_report, run_collection
+from ocop.runtime.storage import write_json
+from ocop.collection.verification import verify as verify_collection
+from ocop.runtime.config import RuntimeConfig, StrictModel
+from ocop.execution.executor import executor_config, executor_hash
+from ocop.runtime.llm import RequestLimits
+from ocop.collection.replication import coverage, prepare_snapshot, replication_report, run_replication, select_pairs
+from ocop.runtime.recovery import AutoRecoveryConfig, automatic_recovery
+from ocop.runtime.storage import ReadStore, StoreConflict, read_database
+from ocop.runtime.storage import digest, file_hash
 
 
 class ExpansionConfig(StrictModel):
@@ -205,7 +206,7 @@ def verify_suite(root):
     checks["global_request_concurrency"] = peak <= runtime.requests.concurrency
     for name, path in paths.items():
         if (path / "records.sqlite3").exists():
-            from ocop.storage import export_run
+            from ocop.runtime.storage import export_run
 
             exported = path / "verification-export.jsonl"
             export_run(path, exported)

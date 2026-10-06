@@ -7,11 +7,11 @@ from pathlib import Path
 
 from ocop import __version__
 from ocop.graph import contract_hash, load_contract, replay, trajectory_schema
-from ocop.config import load_config
-from ocop.diagnostics import smoke_services
-from ocop.execution import run_execution
-from ocop.collection import run_collection
-from ocop.storage import StoreConflict, export_run, inspect_run
+from ocop.runtime.config import load_config
+from ocop.diagnostics.services import smoke_services
+from ocop.execution.single import run_execution
+from ocop.collection.pipeline import run_collection
+from ocop.runtime.storage import StoreConflict, export_run, inspect_run
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,8 +87,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in {"evaluate", "report"}:
         from filelock import Timeout
 
-        from ocop.evaluation import run_evaluation
-        from ocop.evaluation_report import report_evaluation
+        from ocop.evaluation.pipeline import run_evaluation
+        from ocop.evaluation.report import report_evaluation
 
         try:
             if args.command == "report":
@@ -111,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train":
         from filelock import Timeout
 
-        from ocop.full_training import train
+        from ocop.training.engine import train
 
         try:
             output, status = train(args.config, args.data, args.output, args.device,
@@ -124,11 +124,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in {"prepare-sft", "verify-sft"}:
         try:
             if args.command == "prepare-sft":
-                from ocop.trajectories import prepare_sft
+                from ocop.training.data import prepare_sft
 
                 output, status = prepare_sft(load_config(args.config), args.source, args.output)
             else:
-                from ocop.training import verify_sft
+                from ocop.training.updates import verify_sft
 
                 output, status = verify_sft(load_config(args.config), args.data, args.output,
                     args.device, reload_checkpoint=args.reload_checkpoint, config_path=args.config)

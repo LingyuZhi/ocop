@@ -10,17 +10,19 @@ from tensorboard.backend.event_processing.event_accumulator import EventAccumula
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoTokenizer
 
-from ocop.benchmark import BenchmarkConfig, validate_manifest
-from ocop.collection import graph_fingerprint, write_json
-from ocop.config import RuntimeConfig
-from ocop.executor import executor_hash
+from ocop.collection.benchmark import BenchmarkConfig, validate_manifest
+from ocop.graph import graph_fingerprint
+from ocop.runtime.storage import write_json
+from ocop.runtime.config import RuntimeConfig
+from ocop.execution.executor import executor_hash
 from ocop.graph import replay
-from ocop.labels import aggregate_label
-from ocop.policy_generation import parse_generation
-from ocop.scoring import normalize_reference, score_answer
-from ocop.storage import export_run, read_database
-from ocop.trajectories import digest, file_hash, policy_messages
-from ocop.usage import cost_budget_summary, summarize_usage
+from ocop.execution.labels import aggregate_label
+from ocop.inference.transformers import parse_generation
+from ocop.execution.scoring import normalize_reference, score_answer
+from ocop.runtime.storage import export_run, read_database
+from ocop.runtime.storage import digest, file_hash
+from ocop.training.data import policy_messages
+from ocop.runtime.usage import cost_budget_summary, summarize_usage
 
 
 class EvaluationView:
@@ -79,7 +81,7 @@ def graph_comparison(left, right):
 
 
 def build_report(view, phase):
-    from ocop.evaluation import EvaluationConfig, candidate_plan
+    from ocop.evaluation.pipeline import EvaluationConfig, candidate_plan
 
     snapshot = view.archive["config"]
     config = RuntimeConfig.model_validate(snapshot["runtime"])

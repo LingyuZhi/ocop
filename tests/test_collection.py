@@ -8,14 +8,14 @@ from pathlib import Path
 import httpx
 import pytest
 
-import ocop.collection as collection
-import ocop.llm as llm
-from ocop.benchmark import BenchmarkConfig, build_manifest, validate_manifest
+import ocop.collection.pipeline as collection
+import ocop.runtime.llm as llm
+from ocop.collection.benchmark import BenchmarkConfig, build_manifest, validate_manifest
 from ocop.cli import main
-from ocop.config import canonical_json, load_config
+from ocop.runtime.config import canonical_json, load_config
 from ocop.graph import replay
-from ocop.labels import aggregate_label
-from ocop.storage import RunStore, StoreConflict, read_database
+from ocop.execution.labels import aggregate_label
+from ocop.runtime.storage import RunStore, StoreConflict, read_database
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -340,7 +340,7 @@ def test_collect_cli_manifest_only(tmp_path, capsys):
 
 def test_source_loading_preserves_declared_dataset_splits(tmp_path, monkeypatch):
     import datasets
-    from ocop.benchmark import load_source
+    from ocop.collection.benchmark import load_source
 
     local = tmp_path / "dataset"
     (local / "main").mkdir(parents=True)

@@ -4,8 +4,8 @@ import math
 
 from pydantic import Field
 
-from ocop.config import StrictModel
-from ocop.storage import RunHalted, RunStore
+from ocop.runtime.config import StrictModel
+from ocop.runtime.storage import RunHalted, RunStore
 
 
 class CostBudget(StrictModel):

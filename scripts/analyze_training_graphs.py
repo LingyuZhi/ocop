@@ -4,7 +4,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from ocop.config import canonical_json
+from ocop.runtime.config import canonical_json
 
 
 def read_records(path):

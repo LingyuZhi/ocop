@@ -8,8 +8,8 @@ from pathlib import Path
 
 from pydantic import Field, model_validator
 
-from ocop.config import StrictModel
-from ocop.trajectories import file_hash
+from ocop.runtime.config import StrictModel
+from ocop.runtime.storage import file_hash
 
 
 class VllmConfig(StrictModel):

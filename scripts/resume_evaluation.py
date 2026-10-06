@@ -5,13 +5,13 @@ from pathlib import Path
 
 import httpx
 
-from ocop.config import RuntimeConfig, load_config
-from ocop.evaluation import prepare_evaluation, run_evaluation
-from ocop.evaluation_report import EvaluationView
-from ocop.llm import load_credentials
-from ocop.recovery import probe_models, recover_connections
-from ocop.storage import ReadStore, StoreConflict
-from ocop.trajectories import digest
+from ocop.runtime.config import RuntimeConfig, load_config
+from ocop.evaluation.pipeline import prepare_evaluation, run_evaluation
+from ocop.evaluation.report import EvaluationView
+from ocop.runtime.llm import load_credentials
+from ocop.runtime.recovery import probe_models, recover_connections
+from ocop.runtime.storage import ReadStore, StoreConflict
+from ocop.runtime.storage import digest
 
 
 def main():

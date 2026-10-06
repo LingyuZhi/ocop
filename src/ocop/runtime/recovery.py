@@ -7,13 +7,13 @@ from typing import Literal
 import httpx
 from pydantic import Field, model_validator
 
-from ocop.collection_validation import verify as verify_collection
-from ocop.config import StrictModel
-from ocop.diagnostics import provenance
-from ocop.evaluation_report import EvaluationView, audit_generation_tokens, build_report
-from ocop.llm import load_credentials
-from ocop.storage import RunStore, StoreConflict
-from ocop.trajectories import digest, file_hash
+from ocop.collection.verification import verify as verify_collection
+from ocop.runtime.config import StrictModel
+from ocop.diagnostics.services import provenance
+from ocop.evaluation.report import EvaluationView, audit_generation_tokens, build_report
+from ocop.runtime.llm import load_credentials
+from ocop.runtime.storage import RunStore, StoreConflict
+from ocop.runtime.storage import digest, file_hash
 
 
 CONNECTION_ERRORS = {"ConnectError", "RemoteProtocolError", "ReadError", "WriteError",
@@ -61,7 +61,7 @@ def validate_recovery_records(path, snapshot):
         report = verify_collection(path, allow_pending=True)
         passed = all(value for key, value in report["checks"].items() if key != "not_halted")
     elif snapshot["purpose"] == "graph_replication":
-        from ocop.replication import replication_report
+        from ocop.collection.replication import replication_report
 
         passed = replication_report(path)["integrity_passed"]
     else:
