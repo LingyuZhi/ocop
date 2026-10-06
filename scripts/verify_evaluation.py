@@ -10,7 +10,7 @@ from filelock import FileLock
 
 from ocop.collection import graph_fingerprint
 from ocop.config import load_config
-from ocop.evaluation import prepare_evaluation
+from ocop.evaluation import archived_snapshot_matches, prepare_evaluation
 from ocop.evaluation_report import EvaluationView, audit_generation_tokens, audit_metrics, build_report
 from ocop.graph import replay
 from ocop.storage import export_run
@@ -70,7 +70,7 @@ def verify(path, baseline=None):
         checks = {**report["checks"], "finished": report["finished"],
             "policy_executor_evidence": report["policy_executor_evidence"],
             "engineering_passed": report["engineering_passed"],
-            "frozen_inputs": digest(current) == digest(snapshot),
+            "frozen_inputs": archived_snapshot_matches(current, snapshot),
             "archived_manifest": digest(json.loads((path / "evaluation-manifest.json").read_text())) == digest(snapshot),
             "report_recomputed": digest({key: saved[key] for key in report}) == digest(report),
             "generation_tokens": audit_generation_tokens(view)["passed"],

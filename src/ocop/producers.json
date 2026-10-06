@@ -1,0 +1,15 @@
+{
+  "version": "ocop.training_producers.v1",
+  "producers": [
+    {
+      "revision": "d4377c83e4aa545ca6793d7abd40c9ff49fdda9d",
+      "source_sha256": "72df463e6c33885d67aeebae28fe2d942a3699a41b6adb5396381bdeefde5fb5",
+      "implementation_hashes": {
+        "full_training.py": "dc6d2208414eb38ae38d1953124592c4b2ae251aa64eda16e22894e180c16dae",
+        "training.py": "d7ccb0b7140d8660bdfd4b079415b26e5e798ef070fa0b392835a33d54853cff",
+        "trajectories.py": "4829d288716fa66689afe4cee746e6631e24687ae2d87c2c5cd1e88f03971c1a",
+        "config.py": "7d19e3b2a59b1dd9c7783016b8b123e1e2420eed151f378cd1b3625277d60533"
+      }
+    }
+  ]
+}

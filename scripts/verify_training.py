@@ -11,7 +11,7 @@ import torch
 from ocop.config import load_config
 from ocop.full_training import (
     audit_events, audit_inputs, batch_schedule, epoch_metrics, latest_checkpoint,
-    next_position, run_identity, training_settings, validate_saved_checkpoint,
+    next_position, training_settings, validate_saved_checkpoint, verified_producer_identity,
 )
 from ocop.trajectories import file_hash
 
@@ -31,7 +31,7 @@ def verify(path):
     settings = training_settings(config)
     manifest, samples, _ = audit_inputs(config, Path(run["data"]))
     schedule = batch_schedule(samples, settings)
-    identity = run_identity(config, manifest, schedule)
+    identity, _ = verified_producer_identity(config, manifest, schedule, run["identity"])
     total = len(schedule)
     updates = report["updates"]
     counts = Counter(cid for row in updates for cid in row["sample_ids"])

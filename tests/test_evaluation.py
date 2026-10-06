@@ -22,6 +22,19 @@ from test_collection import SOURCE, VALID_GRAPH, reply
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_archived_snapshot_allows_verified_producer_with_new_consumer_code():
+    archived = {"training": {"path": "training"}, "environment": {"source_sha256": "old"}, "settings": {"seed": 1}}
+    current = {"training": {"path": "training", "producer": {"source_sha256": "old"}},
+               "environment": {"source_sha256": "new"}, "settings": {"seed": 1}}
+    assert evaluation.archived_snapshot_matches(current, archived)
+    assert current["environment"]["source_sha256"] == "new"
+    current["settings"]["seed"] = 2
+    assert not evaluation.archived_snapshot_matches(current, archived)
+    current["settings"]["seed"] = 1
+    current["training"]["producer"]["source_sha256"] = "unknown"
+    assert not evaluation.archived_snapshot_matches(current, archived)
+
+
 @pytest.fixture(scope="module")
 def tokenizer():
     return AutoTokenizer.from_pretrained("/data1/zhilingyu/models/Qwen3.5-2B", local_files_only=True)

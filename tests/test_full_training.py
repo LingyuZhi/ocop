@@ -21,6 +21,39 @@ from test_sft import tiny_qwen
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def producer_inputs():
+    config = load_config(ROOT / "config/prototype.json")
+    manifest = {"hash": "data", "model": {"path": "model", "files": {}}}
+    schedule = [{"step": 1}]
+    archived = training.run_identity(config, manifest, schedule)
+    registry = json.loads((ROOT / "src/ocop/producers.json").read_text())
+    archived["implementation_hashes"] = registry["producers"][0]["implementation_hashes"]
+    return config, manifest, schedule, archived
+
+
+def test_frozen_producer_is_accepted_for_read_only_checkpoint_consumption():
+    args = producer_inputs()
+    identity, producer = training.verified_producer_identity(*args)
+    assert identity == args[-1]
+    assert producer["revision"] == "d4377c83e4aa545ca6793d7abd40c9ff49fdda9d"
+    assert identity != training.run_identity(*args[:3])
+
+
+@pytest.mark.parametrize("field", ["data_hash", "config_hash", "schedule_hash", "model", "versions"])
+def test_frozen_producer_does_not_accept_changed_training_inputs(field):
+    config, manifest, schedule, archived = producer_inputs()
+    archived[field] = "changed"
+    with pytest.raises(ValueError, match="mismatch"):
+        training.verified_producer_identity(config, manifest, schedule, archived)
+
+
+def test_unknown_training_implementation_is_rejected():
+    config, manifest, schedule, archived = producer_inputs()
+    archived["implementation_hashes"] = {"unknown.py": "unknown"}
+    with pytest.raises(ValueError, match="unknown production"):
+        training.verified_producer_identity(config, manifest, schedule, archived)
+
+
 class Backbone(torch.nn.Module):
     def __init__(self):
         super().__init__()

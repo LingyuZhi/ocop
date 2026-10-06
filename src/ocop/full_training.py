@@ -178,6 +178,23 @@ def run_identity(config, manifest, schedule):
                                   ("full_training.py", "training.py", "trajectories.py", "config.py")}}
 
 
+def verified_producer_identity(config, manifest, schedule, archived):
+    current = run_identity(config, manifest, schedule)
+    if {k: v for k, v in archived.items() if k != "implementation_hashes"} != {
+            k: v for k, v in current.items() if k != "implementation_hashes"}:
+        raise ValueError("Training artifact data, configuration, model, versions or schedule mismatch")
+    if archived == current:
+        return archived, None
+    registry = json.loads(Path(__file__).with_name("producers.json").read_text())
+    if registry["version"] != "ocop.training_producers.v1":
+        raise ValueError("Unsupported training producer registry")
+    producer = next((item for item in registry["producers"]
+                     if item["implementation_hashes"] == archived.get("implementation_hashes")), None)
+    if producer is None:
+        raise ValueError("Training artifacts have an unknown production implementation")
+    return archived, producer
+
+
 def setup_device(device, seed, minimum_gib=23):
     if not torch.cuda.is_available() or not device.startswith("cuda:"):
         raise ValueError("Full SFT requires an available CUDA device")

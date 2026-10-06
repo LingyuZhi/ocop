@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import importlib.metadata
 import json
 import time
@@ -19,7 +20,7 @@ from ocop.config import StrictModel, load_config
 from ocop.diagnostics import provenance
 from ocop.evaluation_report import save_report
 from ocop.executor import execute_repeat, executor_config, executor_hash
-from ocop.full_training import audit_inputs, batch_schedule, run_identity, training_settings, validate_saved_checkpoint
+from ocop.full_training import audit_inputs, batch_schedule, training_settings, validate_saved_checkpoint, verified_producer_identity
 from ocop.graph import replay
 from ocop.inference.vllm_pool import VllmConfig, VllmPool, inference_environment
 from ocop.labels import aggregate_label
@@ -109,7 +110,7 @@ def prepare_evaluation(runtime, source, training_run):
             or data["source"]["verification"]["manifest_hash"] != manifest["hash"]):
         raise ValueError("Evaluation policy or source differs from the training run")
     schedule = batch_schedule(samples, training_settings(training_config))
-    identity = run_identity(training_config, data, schedule)
+    identity, producer = verified_producer_identity(training_config, data, schedule, training_manifest["identity"])
     report = json.loads((training_run / "training-report.json").read_text())
     checkpoint = training_run / f"checkpoint-step-{len(schedule)}"
     metadata = validate_saved_checkpoint(checkpoint, identity, schedule)
@@ -142,6 +143,8 @@ def prepare_evaluation(runtime, source, training_run):
         "training": {"path": str(training_run.resolve()), "data_hash": data["hash"],
                      "checkpoint_hash": metadata["hash"], "report_hash": file_hash(training_run / "training-report.json")},
         "environment": origin}
+    if producer is not None:
+        snapshot["training"]["producer"] = producer
     if settings.vllm is not None:
         maximum_prompt = max(len(tokenizer.apply_chat_template(policy_messages(tasks[c["task_id"]]["question"], c["z"]),
             tokenize=True, return_dict=False, add_generation_prompt=True, enable_thinking=True)) for c in plan)
@@ -149,6 +152,19 @@ def prepare_evaluation(runtime, source, training_run):
             raise ValueError("vLLM context is too short for the frozen prompt and full generation budget")
         snapshot["inference_environment"] = inference_environment(settings.vllm)
     return snapshot, tokenizer
+
+
+def archived_snapshot_matches(current, archived):
+    if digest(current) == digest(archived):
+        return True
+    producer = current.get("training", {}).get("producer")
+    if (producer is None or "producer" in archived.get("training", {})
+            or archived.get("environment", {}).get("source_sha256") != producer["source_sha256"]):
+        return False
+    comparable = copy.deepcopy(current)
+    comparable["training"].pop("producer")
+    comparable["environment"]["source_sha256"] = producer["source_sha256"]
+    return digest(comparable) == digest(archived)
 
 
 def install_candidates(store, snapshot):
