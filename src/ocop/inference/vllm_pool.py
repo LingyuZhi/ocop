@@ -1,6 +1,7 @@
 import json
 import os
 import queue
+import shutil
 import signal
 import subprocess
 import threading
@@ -30,9 +31,16 @@ class VllmConfig(StrictModel):
         return self
 
 
-def worker_environment(gpu_uuid=None, cache=None):
+def worker_environment(python, gpu_uuid=None, cache=None):
     env = os.environ.copy()
     env.pop("LD_LIBRARY_PATH", None)
+    bin_dir = Path(shutil.which(python) or python).parent.resolve()
+    prefix = bin_dir.parent
+    if (prefix / "conda-meta").is_dir():
+        # Torch and conda's SQLite must load the same C++ runtime.
+        env["LD_LIBRARY_PATH"] = str(prefix / "lib")
+        env["PATH"] = os.pathsep.join((str(bin_dir), env.get("PATH", os.defpath)))
+        env["CONDA_PREFIX"] = str(prefix)
     for key in list(env):
         if key.endswith("_API_KEY"):
             env.pop(key)
@@ -50,7 +58,7 @@ def worker_environment(gpu_uuid=None, cache=None):
 
 def inference_environment(settings):
     result = subprocess.run([settings.python, "-m", "ocop.inference.vllm_worker", "--environment"],
-        env=worker_environment(), capture_output=True, text=True, check=True, timeout=60)
+        env=worker_environment(settings.python), capture_output=True, text=True, check=True, timeout=60)
     return {**json.loads(result.stdout), "environment_lock_sha256": file_hash(Path(settings.environment_lock))}
 
 
@@ -93,7 +101,8 @@ class VllmPool:
             self.logs.append(log)
             process = subprocess.Popen([self.settings.python, "-m", "ocop.inference.vllm_worker"],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True, bufsize=1,
-                env=worker_environment(gpu_uuid, Path(self.settings.cache_dir) / f"worker-{index}"), start_new_session=True)
+                env=worker_environment(self.settings.python, gpu_uuid, Path(self.settings.cache_dir) / f"worker-{index}"),
+                start_new_session=True)
             self.processes.append(process)
             model = self.snapshot["settings"]["models"][index // half]
             self._send(index, {"model_path": self.snapshot["models"][model]["path"],

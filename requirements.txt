@@ -1,0 +1,7 @@
+--extra-index-url https://download.pytorch.org/whl/cu121
+-e .[local,training,analysis,dev]
+
+# The pilot checkpoint verifies these versions alongside torch and transformers.
+numpy==2.5.3
+tensorboard==2.21.0
+tokenizers==0.22.2

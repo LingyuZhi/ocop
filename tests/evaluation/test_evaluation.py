@@ -3,6 +3,8 @@ import ocop.runtime.recovery as recovery
 import asyncio
 import importlib.util
 import json
+import shutil
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -16,6 +18,7 @@ from ocop.runtime.config import load_config
 from ocop.evaluation.report import EvaluationView, audit_metrics, report_evaluation
 from ocop.execution.executor import executor_config, executor_hash
 from ocop.inference.transformers import candidate_seed, generation_config, parse_generation
+from ocop.inference.vllm_pool import worker_environment
 from ocop.runtime.storage import RunStore, StoreConflict
 from ocop.training.data import policy_messages
 from tests.support import SOURCE, VALID_GRAPH, reply
@@ -174,6 +177,23 @@ def vllm_mock_pool(tokenizer, calls, *, interrupt=False):
         def close(self):
             pass
     return Pool
+
+
+def test_conda_worker_uses_its_own_libraries_and_python(tmp_path, monkeypatch):
+    prefix = tmp_path / "worker"
+    (prefix / "conda-meta").mkdir(parents=True)
+    (prefix / "bin").mkdir()
+    python = prefix / "bin" / "python"
+    python.symlink_to(sys.executable)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CONDA_PREFIX", str(tmp_path / "train"))
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/usr/local/cuda/lib64")
+
+    env = worker_environment("worker/bin/python")
+
+    assert env["CONDA_PREFIX"] == str(prefix)
+    assert env["LD_LIBRARY_PATH"] == str(prefix / "lib")
+    assert shutil.which("python", path=env["PATH"]) == str(python)
 
 
 def test_vllm_parallel_generation_preserves_raw_tokens_and_public_execution(tmp_path, environment, tokenizer):

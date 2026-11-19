@@ -8,20 +8,25 @@ PolicyLLM 根据任务、组织规则和目标成功率 `z`，生成四个 worke
 
 ## 安装
 
-使用 uv 管理环境，仓库默认 Python 3.12。在仓库根目录运行：
+在仓库根目录创建 Python 3.12 的 conda 环境。采集、训练、分析及评估主进程都在 `ocop-train` 中运行。
 
 ```bash
-uv sync --locked
-uv run --locked ocop --help
+conda create -p "$PWD/outputs/environments/ocop-train" python=3.12 pip
+conda activate "$PWD/outputs/environments/ocop-train"
+python -m pip install -r requirements.txt
+ocop --help
 ```
 
-本地模型、全参数训练和评估需要 NVIDIA GPU 及额外依赖：
+根目录的 `requirements.txt` 安装可编辑的 OCOP、CUDA 12.1 版 PyTorch、训练、分析和测试依赖，并固定已有 Pilot checkpoint 校验的版本。只用远端模型做采集时，安装步骤可简化为 `python -m pip install -e .`。
+
+使用 vLLM 评估时，再创建独立的推理环境。以下命令可以在训练环境中执行。
 
 ```bash
-uv sync --locked --extra local --extra training
+conda create -p "$PWD/outputs/environments/ocop-vllm" python=3.12 pip
+"$PWD/outputs/environments/ocop-vllm/bin/python" -m pip install -r configs/pilot-vllm/requirements.txt
 ```
 
-组织独立复测等统计分析还需 `--extra analysis`。依赖版本由 `uv.lock` 固定。
+训练环境使用 PyTorch 2.5.1+cu121。推理清单固定了 Linux x86_64 上 vLLM 0.18.0、PyTorch 2.10.0 及其依赖。从训练环境运行 `ocop evaluate`，它会启动推理环境中的 worker。若使用其他环境路径，在 [评估配置](configs/gsm8k-pilot-eval.json) 中更新 `evaluation.vllm.python`。`environment_lock` 指向推理清单，评估会记录它的 SHA-256。
 
 ## 配置
 
@@ -47,17 +52,17 @@ uv sync --locked --extra local --extra training
 离线校验示例组织，无需 API 凭据或模型权重：
 
 ```bash
-uv run --locked ocop graph validate examples/graph/valid.json
+ocop graph validate examples/graph/valid.json
 ```
 
 配置凭据后检查远端服务并查看记录；`smoke` 会实际调用模型服务：
 
 ```bash
-uv run --locked ocop smoke --config configs/prototype.json --run-id service-check
-uv run --locked ocop runs show artifacts/runs/service-check
+ocop smoke --config configs/prototype.json --run-id service-check
+ocop runs show artifacts/runs/service-check
 ```
 
-新实验使用新的 run ID；恢复时沿用该 run 的配置快照和已有记录。
+新实验使用新的 run ID，恢复时沿用该 run 的配置快照和已有记录。正式实验可把训练环境的 `python -m pip freeze` 输出、Python 版本和 NVIDIA 驱动版本随 run 保存。
 本地完整采集、训练与评估流程见 `my_docs/usage.md`，该私有手册不随仓库分发。
 
 ## 主要命令
@@ -78,7 +83,7 @@ uv run --locked ocop runs show artifacts/runs/service-check
 | `diagnose` | 模型检查、组织图统计与策略结果诊断 |
 | `experiment` | 固定图基线、扩量监督与 SFT 闭环编排 |
 
-通过 `uv run --locked ocop <命令> --help` 查看参数。
+通过 `ocop <命令> --help` 查看参数。
 长时间采集、训练和评估使用 tmux 持久化。
 
 ## 目录
@@ -104,8 +109,7 @@ uv run --locked ocop runs show artifacts/runs/service-check
 ## 开发验证
 
 ```bash
-uv run --locked --extra local --extra training --extra analysis pytest
+python -m pytest
 ```
 
-若服务器预设的 CUDA 库路径与 uv 环境冲突，相关命令可加 `env -u LD_LIBRARY_PATH` 前缀；
-环境检查与 GPU 要求见使用手册。
+如果训练环境遇到服务器预设的 CUDA 库冲突，可在 `ocop` 命令前加 `env -u LD_LIBRARY_PATH`。评估启动 vLLM worker 时会自动使用推理环境的 `bin/` 和 `lib/`。环境检查与 GPU 要求见使用手册。

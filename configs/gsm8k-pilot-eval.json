@@ -154,8 +154,8 @@
       "output_per_million": 0.6
     },
     "vllm": {
-      "python": "/data1/zhilingyu/ocop/outputs/environments/pilot-vllm/bin/python",
-      "environment_lock": "/data1/zhilingyu/ocop/configs/pilot-vllm/uv.lock",
+      "python": "outputs/environments/ocop-vllm/bin/python",
+      "environment_lock": "configs/pilot-vllm/requirements.txt",
       "gpu_uuids": [
         "GPU-ed6bccc9-9a6f-5307-fcf4-053013e25057",
         "GPU-dcfeecc4-7eb4-2f3d-b6ef-6ceee7b03982",
@@ -169,7 +169,7 @@
       "max_num_batched_tokens": 4096,
       "gpu_memory_utilization": 0.75,
       "enforce_eager": true,
-      "cache_dir": "/data1/zhilingyu/ocop/outputs/environments/pilot-vllm/cache"
+      "cache_dir": "outputs/vllm-cache"
     }
   },
   "diagnostics": {
